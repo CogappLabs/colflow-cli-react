@@ -22,6 +22,8 @@ import {
 	resolveParquetPath,
 } from '../../project/index.ts'
 import { resolveWorkspace } from '../../project/workspace.ts'
+import { t } from '../i18n/en.ts'
+import { buildErrorPrompt, launchClaude } from '../launchClaude.ts'
 
 interface RunContext {
 	runId: string
@@ -199,6 +201,7 @@ export function AssetView({
 	const [phase, setPhase] = useState<LaunchPhase>({ kind: 'idle' })
 	const [wsProject, setWsProject] = useState<ReturnType<typeof detectFromEnv>>(null)
 	const [cursor, setCursor] = useState<number | null>(null)
+	const [claudeMsg, setClaudeMsg] = useState<string | null>(null)
 
 	const assetName = path[path.length - 1] ?? ''
 	const project = wsProject ?? detectFromEnv()
@@ -238,50 +241,18 @@ export function AssetView({
 	const isLocal = parquetPath ? isLocalAssetRoot() && !parquetPath.includes('://') : false
 	const parquetExists = !!(isLocal && parquetPath && existsSync(parquetPath))
 
-	// Build rows
+	// Build rows in priority order: failure first, then selectable checks
+	// + selectable metadata, then actions at the bottom. Non-selectable rows
+	// (passing checks, short metadata) go to the staticMeta footer block so
+	// they don't compete with arrow-key navigation.
 	const rows: Row[] = []
+	const staticChecks: { label: string; value: string; colour: string }[] = []
 
-	// Actions
-	rows.push({
-		kind: 'action',
-		label: 'MATERIALISE',
-		value: 'launch run for this asset',
-		colour: 'green',
-		openable: true,
-		action: 'materialise',
-	})
-	if (parquetExists && parquetPath) {
-		rows.push({
-			kind: 'action',
-			label: 'SCHEMA',
-			value: parquetPath,
-			colour: 'cyan',
-			openable: true,
-			action: 'schema',
-		})
-		rows.push({
-			kind: 'action',
-			label: 'SAMPLE',
-			value: 'first N rows',
-			colour: 'cyan',
-			openable: true,
-			action: 'sample',
-		})
-		rows.push({
-			kind: 'action',
-			label: 'SAMPLE BY ID',
-			value: 'filter rows by column = value',
-			colour: 'cyan',
-			openable: true,
-			action: 'sample-by-id',
-		})
-	}
-
-	// Run-context failure
+	// Run-context failure (top — most urgent)
 	if (runDetail?.failure) {
 		rows.push({
 			kind: 'failure',
-			label: 'FAILURE',
+			label: t.asset.failureLabel,
 			value: truncate(runDetail.failure.error?.message ?? runDetail.failure.message, 120),
 			colour: 'red',
 			openable: true,
@@ -290,21 +261,27 @@ export function AssetView({
 		})
 	}
 
-	// Checks (run-scoped if available)
+	// Checks: openable into rows, non-openable PASSes into staticChecks
 	const checks = runDetail?.checks ?? []
 	for (const c of checks) {
-		rows.push({
-			kind: 'check',
-			label: c.success ? 'PASS' : 'FAIL',
-			value: c.checkName,
-			colour: c.success ? 'green' : 'red',
-			openable: c.metadataEntries.length > 0,
-			title: `Check: ${c.checkName}`,
-			body: checkBody(c),
-			checkName: c.checkName,
-			checkFailed: !c.success,
-			check: c,
-		})
+		const colour = c.success ? 'green' : 'red'
+		const label = c.success ? t.asset.passLabel : t.asset.failLabel
+		if (c.metadataEntries.length > 0) {
+			rows.push({
+				kind: 'check',
+				label,
+				value: c.checkName,
+				colour,
+				openable: true,
+				title: `Check: ${c.checkName}`,
+				body: checkBody(c),
+				checkName: c.checkName,
+				checkFailed: !c.success,
+				check: c,
+			})
+		} else {
+			staticChecks.push({ label, value: c.checkName, colour })
+		}
 	}
 
 	// Materialisation metadata (latest). Selectable entries (large bodies users
@@ -337,17 +314,53 @@ export function AssetView({
 		})
 	}
 
+	// Actions at the bottom — primary calls-to-action after status info.
+	rows.push({
+		kind: 'action',
+		label: t.asset.materialiseLabel,
+		value: t.asset.actionDescriptions.materialise,
+		colour: 'green',
+		openable: true,
+		action: 'materialise',
+	})
+	if (parquetExists && parquetPath) {
+		rows.push({
+			kind: 'action',
+			label: t.asset.schemaLabel,
+			value: parquetPath,
+			colour: 'cyan',
+			openable: true,
+			action: 'schema',
+		})
+		rows.push({
+			kind: 'action',
+			label: t.asset.sampleLabel,
+			value: t.asset.actionDescriptions.sample,
+			colour: 'cyan',
+			openable: true,
+			action: 'sample',
+		})
+		rows.push({
+			kind: 'action',
+			label: t.asset.sampleByIdLabel,
+			value: t.asset.actionDescriptions.sampleById,
+			colour: 'cyan',
+			openable: true,
+			action: 'sample-by-id',
+		})
+	}
+
 	const openableIndices = rows.map((r, i) => (r.openable ? i : -1)).filter((i) => i >= 0)
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: rows rebuilt every render; only set cursor once on initial population.
 	useEffect(() => {
 		if (cursor === null && openableIndices.length > 0) {
-			// Default cursor: first failure/fail row, else first action
 			const failIdx = rows.findIndex(
 				(r) => r.openable && (r.kind === 'failure' || (r.kind === 'check' && r.colour === 'red')),
 			)
-			setCursor(failIdx >= 0 ? failIdx : openableIndices[0]!)
+			setCursor(failIdx >= 0 ? failIdx : (openableIndices[0] ?? 0))
 		}
-	}, [cursor, openableIndices, rows])
+	}, [cursor, openableIndices])
 
 	const triggerAction = (action: NonNullable<Row['action']>) => {
 		if (action === 'materialise') {
@@ -392,15 +405,48 @@ export function AssetView({
 		if (input === 's' && parquetExists) triggerAction('schema')
 		if (input === 'd' && parquetExists) triggerAction('sample')
 		if (input === 'i' && parquetExists) triggerAction('sample-by-id')
+		if (input === 'c' && project) {
+			// Two cases: an execution failure on this step, or the cursor is
+			// on a failed check row (asset succeeded but a check failed).
+			let prompt: string | null = null
+			const cursorRow = cursor !== null ? rows[cursor] : null
+			if (runDetail?.failure) {
+				const f = runDetail.failure
+				prompt = buildErrorPrompt({
+					assetKey: assetName,
+					runId: runContext?.runId,
+					stepKey: runContext?.stepKey,
+					failureMessage: f.error?.message ?? f.message,
+					failureStack: f.error?.stack ?? null,
+					causes: f.error?.causes,
+				})
+			} else if (cursorRow?.kind === 'check' && cursorRow.checkFailed && cursorRow.check) {
+				const c = cursorRow.check
+				const meta = c.metadataEntries
+					.map((e) => `${e.label}: ${renderMetaValue(e, 4000)}`)
+					.join('\n\n')
+				prompt = buildErrorPrompt({
+					assetKey: assetName,
+					runId: runContext?.runId,
+					stepKey: runContext?.stepKey,
+					failureMessage: `Asset check "${c.checkName}" failed (severity: ${c.severity}).\n\n${meta}`,
+				})
+			}
+			if (!prompt) {
+				setClaudeMsg(t.asset.claudeNoTarget)
+				return
+			}
+			const result = launchClaude({ cwd: project.root, prompt })
+			setClaudeMsg(result.message)
+			return
+		}
 		if (input === 'r' && cursor !== null) {
 			const r = rows[cursor]
 			if (r?.kind === 'check' && r.checkFailed && r.checkName && data?.assetKey) {
 				const checkName = r.checkName
 				setPhase({ kind: 'launching' })
 				const client = makeClient({ url, auth })
-				launchAssetCheckRun(client, [
-					{ assetPath: data.assetKey.path, checkName },
-				])
+				launchAssetCheckRun(client, [{ assetPath: data.assetKey.path, checkName }])
 					.then((runId) => onLaunched(runId))
 					.catch((e: Error) => {
 						setPhase({ kind: 'error', message: String(e?.message ?? e) })
@@ -442,9 +488,14 @@ export function AssetView({
 		}
 	})
 
-	if (error) return <Text color="red">Error: {error}</Text>
-	if (!detail) return <Spinner label="Loading asset..." />
-	if (detail === 'missing') return <Text color="red">Asset not found: {path.join('/')}</Text>
+	if (error)
+		return (
+			<Text color="red">
+				{t.common.errorPrefix} {error}
+			</Text>
+		)
+	if (!detail) return <Spinner label={t.common.loading} />
+	if (detail === 'missing') return <Text color="red">{t.common.notFound(path.join('/'))}</Text>
 
 	const lastMat = detail.assetMaterializations[0]
 	const staleColour =
@@ -459,30 +510,31 @@ export function AssetView({
 			{detail.description && <Text wrap="truncate">{detail.description}</Text>}
 			<Box flexDirection="column">
 				<Text>
-					<Text bold>Group:</Text> {detail.groupName ?? '-'}
+					<Text bold>{t.asset.groupLabel}</Text> {detail.groupName ?? '-'}
 					{'   '}
-					<Text bold>Stale:</Text> <Text color={staleColour}>{detail.staleStatus}</Text>
+					<Text bold>{t.asset.staleLabel}</Text>{' '}
+					<Text color={staleColour}>{detail.staleStatus}</Text>
 					{detail.kinds.length > 0 && (
 						<>
 							{'   '}
-							<Text bold>Kinds:</Text> {detail.kinds.join(', ')}
+							<Text bold>{t.asset.kindsLabel}</Text> {detail.kinds.join(', ')}
 						</>
 					)}
 				</Text>
 				{detail.jobNames.length > 0 && (
 					<Text wrap="truncate">
-						<Text bold>Jobs:</Text> {detail.jobNames.join(', ')}
+						<Text bold>{t.asset.jobsLabel}</Text> {detail.jobNames.join(', ')}
 					</Text>
 				)}
 				{lastMat && (
 					<Text>
-						<Text bold>Last mat:</Text> {formatTimestamp(lastMat.timestamp)} (
+						<Text bold>{t.asset.lastMatLabel}</Text> {formatTimestamp(lastMat.timestamp)} (
 						{timeAgo(lastMat.timestamp)})
 					</Text>
 				)}
 				{runContext && (
 					<Text>
-						<Text bold>In run:</Text> {runContext.runId.slice(0, 8)}{' '}
+						<Text bold>{t.asset.inRunLabel}</Text> {runContext.runId.slice(0, 8)}{' '}
 						{runContext.runStatus && (
 							<Text color={statusColour(runContext.runStatus)}>{runContext.runStatus}</Text>
 						)}
@@ -494,13 +546,13 @@ export function AssetView({
 				<Box marginTop={1} flexDirection="column">
 					{detail.dependencyKeys.length > 0 && (
 						<Text wrap="truncate">
-							<Text bold>Upstream:</Text>{' '}
+							<Text bold>{t.asset.upstreamLabel}</Text>{' '}
 							{detail.dependencyKeys.map((k) => k.path.join('/')).join(', ')}
 						</Text>
 					)}
 					{detail.dependedByKeys.length > 0 && (
 						<Text wrap="truncate">
-							<Text bold>Downstream:</Text>{' '}
+							<Text bold>{t.asset.downstreamLabel}</Text>{' '}
 							<Text color="cyan">
 								{detail.dependedByKeys.map((k) => k.path.join('/')).join(', ')}
 							</Text>
@@ -511,7 +563,7 @@ export function AssetView({
 
 			{phase.kind === 'confirm' && (
 				<Box marginTop={1} flexDirection="column">
-					<Text color="yellow">Materialise &quot;{assetName}&quot;?</Text>
+					<Text color="yellow">{t.asset.materialiseConfirm(assetName)}</Text>
 					<Text>
 						<Text color="green">y</Text> confirm · <Text color="red">n</Text> cancel
 					</Text>
@@ -519,13 +571,18 @@ export function AssetView({
 			)}
 			{phase.kind === 'launching' && (
 				<Box marginTop={1}>
-					<Spinner label="Launching..." />
+					<Spinner label={t.asset.launching} />
 				</Box>
 			)}
 			{phase.kind === 'error' && (
 				<Box marginTop={1} flexDirection="column">
-					<Text color="red">Launch failed: {phase.message}</Text>
-					<Text dimColor>↵ dismiss</Text>
+					<Text color="red">{t.asset.launchFailed(phase.message)}</Text>
+					<Text dimColor>{t.common.dismissHint}</Text>
+				</Box>
+			)}
+			{claudeMsg && (
+				<Box marginTop={1}>
+					<Text color="cyan">{claudeMsg}</Text>
 				</Box>
 			)}
 
@@ -557,26 +614,37 @@ export function AssetView({
 				})}
 				{!parquetExists && (
 					<Box marginTop={1}>
-						<Text>(no local parquet for inspect/sample)</Text>
+						<Text>{t.asset.noLocalParquet}</Text>
 					</Box>
 				)}
 			</Box>
 
-			{staticMeta.length > 0 && (
+			{(staticChecks.length > 0 || staticMeta.length > 0) && (
 				<Box marginTop={2} flexDirection="column">
-					{(() => {
-						const maxStaticLabel = Math.max(...staticMeta.map((m) => m.label.length))
-						return staticMeta.map((m, i) => (
-							<Box key={`${i}-${m.label}`}>
-								<Box width={maxStaticLabel + 2} flexShrink={0}>
-									<Text bold>{m.label}</Text>
-								</Box>
-								<Box flexGrow={1}>
-									<Text wrap="truncate">{m.value}</Text>
-								</Box>
+					{staticChecks.map((c) => (
+						<Box key={`check-${c.value}`}>
+							<Box width={8} flexShrink={0}>
+								<Text color={c.colour}>{c.label}</Text>
 							</Box>
-						))
-					})()}
+							<Box flexGrow={1}>
+								<Text wrap="truncate">{c.value}</Text>
+							</Box>
+						</Box>
+					))}
+					{staticMeta.length > 0 &&
+						(() => {
+							const maxStaticLabel = Math.max(...staticMeta.map((m) => m.label.length))
+							return staticMeta.map((m) => (
+								<Box key={`meta-${m.label}`}>
+									<Box width={maxStaticLabel + 2} flexShrink={0}>
+										<Text bold>{m.label}</Text>
+									</Box>
+									<Box flexGrow={1}>
+										<Text wrap="truncate">{m.value}</Text>
+									</Box>
+								</Box>
+							))
+						})()}
 				</Box>
 			)}
 		</Box>

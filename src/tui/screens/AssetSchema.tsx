@@ -2,6 +2,8 @@ import { Spinner } from '@inkjs/ui'
 import { Box, Text, useInput } from 'ink'
 import { useEffect, useState } from 'react'
 import { inspectParquet, type ParquetInfo } from '../../parquet/index.ts'
+import { type Column, Table } from '../components/Table.tsx'
+import { t } from '../i18n/en.ts'
 import { useViewportWindow } from '../useViewport.ts'
 
 interface Props {
@@ -20,6 +22,8 @@ function humanBytes(n: number): string {
 	}
 	return i === 0 ? `${n} B` : `${v.toFixed(1)} ${units[i]}`
 }
+
+type ParquetColumn = ParquetInfo['columns'][number]
 
 export function AssetSchema({ parquetPath, assetName, onBack }: Props) {
 	const [info, setInfo] = useState<ParquetInfo | null>(null)
@@ -41,19 +45,44 @@ export function AssetSchema({ parquetPath, assetName, onBack }: Props) {
 			return
 		}
 		if (cols.length === 0) return
-		if (key.upArrow) setCursor((c) => Math.max(0, c - 1))
-		if (key.downArrow) setCursor((c) => Math.min(cols.length - 1, c + 1))
+		if (key.upArrow) setCursor((c) => (c <= 0 ? cols.length - 1 : c - 1))
+		if (key.downArrow) setCursor((c) => (c >= cols.length - 1 ? 0 : c + 1))
 		if (key.pageUp) setCursor((c) => Math.max(0, c - visible))
 		if (key.pageDown) setCursor((c) => Math.min(cols.length - 1, c + visible))
 		if (input === 'g') setCursor(0)
 		if (input === 'G') setCursor(cols.length - 1)
 	})
 
-	if (error) return <Text color="red">Error: {error}</Text>
-	if (!info) return <Spinner label="Reading parquet..." />
+	if (error)
+		return (
+			<Text color="red">
+				{t.common.errorPrefix} {error}
+			</Text>
+		)
+	if (!info) return <Spinner label={t.assetSampleById.loading} />
 
-	const slice = cols.slice(start, end)
 	const maxName = Math.max(4, ...cols.map((c) => c.name.length))
+
+	const columns: Column<ParquetColumn>[] = [
+		{
+			header: t.assetSchema.header.name,
+			width: maxName,
+			render: (c) => ({ text: c.name }),
+		},
+		{
+			header: t.assetSchema.header.populated,
+			width: 12,
+			render: (c) => ({ text: c.populated.toLocaleString(), dim: true }),
+		},
+		{
+			header: t.assetSchema.header.percent,
+			flex: true,
+			render: (c) => {
+				const colour = c.populatedPct === 100 ? 'green' : c.populatedPct >= 50 ? 'yellow' : 'red'
+				return { text: `${c.populatedPct.toFixed(1)}%`, colour }
+			},
+		},
+	]
 
 	return (
 		<Box flexDirection="column">
@@ -69,48 +98,13 @@ export function AssetSchema({ parquetPath, assetName, onBack }: Props) {
 				</Text>
 			</Box>
 
-			<Box marginTop={1} flexDirection="column">
-				<Box>
-					<Box width={2} />
-					<Box width={maxName + 2} flexShrink={0}>
-						<Text bold>NAME</Text>
-					</Box>
-					<Box width={14} flexShrink={0}>
-						<Text bold>POPULATED</Text>
-					</Box>
-					<Box flexGrow={1}>
-						<Text bold>%</Text>
-					</Box>
-				</Box>
-				{slice.map((c, sliceIdx) => {
-					const i = start + sliceIdx
-					const selected = i === cursor
-					const colour = c.populatedPct === 100 ? 'green' : c.populatedPct >= 50 ? 'yellow' : 'red'
-					return (
-						<Box key={c.name}>
-							<Box width={2} flexShrink={0}>
-								<Text color="cyan">{selected ? '›' : ' '}</Text>
-							</Box>
-							<Box width={maxName + 2} flexShrink={0}>
-								<Text color={selected ? 'cyan' : undefined} wrap="truncate">
-									{c.name}
-								</Text>
-							</Box>
-							<Box width={14} flexShrink={0}>
-								<Text dimColor>{c.populated.toLocaleString()}</Text>
-							</Box>
-							<Box flexGrow={1}>
-								<Text color={colour}>{c.populatedPct.toFixed(1)}%</Text>
-							</Box>
-						</Box>
-					)
-				})}
-				{cols.length > visible && (
-					<Text dimColor>
-						{cursor + 1}/{cols.length} {start > 0 ? '↑' : ' '}
-						{end < cols.length ? '↓' : ' '}
-					</Text>
-				)}
+			<Box marginTop={1}>
+				<Table
+					columns={columns}
+					data={cols}
+					cursor={cursor}
+					viewport={{ start, end, visible, total: cols.length }}
+				/>
 			</Box>
 		</Box>
 	)

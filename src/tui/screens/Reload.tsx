@@ -1,7 +1,8 @@
 import { Spinner } from '@inkjs/ui'
 import { Box, Text, useInput } from 'ink'
 import { useState } from 'react'
-import { makeClient, reloadLocation, type ReloadResult } from '../../client/index.ts'
+import { makeClient, type ReloadResult, reloadLocation } from '../../client/index.ts'
+import { t } from '../i18n/en.ts'
 
 interface Props {
 	url: string
@@ -30,9 +31,7 @@ export function Reload({ url, auth, onBack }: Props) {
 				const client = makeClient({ url, auth })
 				reloadLocation(client)
 					.then((result) => setPhase({ kind: 'done', result }))
-					.catch((e: Error) =>
-						setPhase({ kind: 'error', message: String(e?.message ?? e) }),
-					)
+					.catch((e: Error) => setPhase({ kind: 'error', message: String(e?.message ?? e) }))
 			}
 			if (input === 'n') onBack()
 			return
@@ -45,33 +44,31 @@ export function Reload({ url, auth, onBack }: Props) {
 	return (
 		<Box flexDirection="column">
 			<Text bold color="cyan">
-				Reload Dagster code location
+				{t.reload.title}
 			</Text>
 			<Box marginTop={1}>
 				{phase.kind === 'confirm' && (
 					<Box flexDirection="column">
-						<Text color="yellow">Reload now?</Text>
+						<Text color="yellow">{t.reload.confirm}</Text>
 						<Text>
 							<Text color="green">y</Text> confirm · <Text color="red">n</Text> cancel
 						</Text>
 					</Box>
 				)}
-				{phase.kind === 'reloading' && <Spinner label="Reloading..." />}
+				{phase.kind === 'reloading' && <Spinner label={t.reload.reloading} />}
 				{phase.kind === 'done' && (
 					<Box flexDirection="column">
-						<Text
-							color={phase.result.status === 'LOADED' ? 'green' : 'yellow'}
-						>
+						<Text color={phase.result.status === 'LOADED' ? 'green' : 'yellow'}>
 							{phase.result.status}
 						</Text>
 						{phase.result.message && <Text>{phase.result.message}</Text>}
-						<Text dimColor>↵ back</Text>
+						<Text dimColor>{t.reload.backHint}</Text>
 					</Box>
 				)}
 				{phase.kind === 'error' && (
 					<Box flexDirection="column">
-						<Text color="red">Reload failed: {phase.message}</Text>
-						<Text dimColor>↵ back</Text>
+						<Text color="red">{t.reload.failed(phase.message)}</Text>
+						<Text dimColor>{t.reload.backHint}</Text>
 					</Box>
 				)}
 			</Box>

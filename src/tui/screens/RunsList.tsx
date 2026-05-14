@@ -2,7 +2,10 @@ import { Spinner } from '@inkjs/ui'
 import { Box, Text, useInput } from 'ink'
 import { useEffect, useState } from 'react'
 import { fetchRuns, makeClient, type Run } from '../../client/index.ts'
-import { formatTimestamp, statusColour, timeAgo } from '../../format/index.ts'
+import { durationStr } from '../../diff/index.ts'
+import { formatTimestamp, statusColour, timeAgo, tsToSeconds } from '../../format/index.ts'
+import { type Column, Table } from '../components/Table.tsx'
+import { t } from '../i18n/en.ts'
 import { useViewportWindow } from '../useViewport.ts'
 
 interface Props {
@@ -48,8 +51,8 @@ export function RunsList({ url, auth, onSelect, onQuit, onDiff }: Props) {
 			onQuit()
 			return
 		}
-		if (key.upArrow) setCursor((c) => Math.max(0, c - 1))
-		if (key.downArrow) setCursor((c) => Math.min(runs.length - 1, c + 1))
+		if (key.upArrow) setCursor((c) => (c <= 0 ? runs.length - 1 : c - 1))
+		if (key.downArrow) setCursor((c) => (c >= runs.length - 1 ? 0 : c + 1))
 		if (key.pageUp) setCursor((c) => Math.max(0, c - visible))
 		if (key.pageDown) setCursor((c) => Math.min(runs.length - 1, c + visible))
 		if (input === 'g') setCursor(0)
@@ -81,93 +84,95 @@ export function RunsList({ url, auth, onSelect, onQuit, onDiff }: Props) {
 	const safeRuns = runs ?? []
 	const { start, end, visible } = useViewportWindow(safeRuns.length, cursor, 8)
 
-	if (error) return <Text color="red">Error: {error}</Text>
-	if (!runs) return <Spinner label="Loading runs..." />
-	if (runs.length === 0) return <Text dimColor>No runs found.</Text>
+	if (error)
+		return (
+			<Text color="red">
+				{t.common.errorPrefix} {error}
+			</Text>
+		)
+	if (!runs) return <Spinner label={t.common.loading} />
+	if (runs.length === 0) return <Text dimColor>{t.runs.empty}</Text>
 
 	const maxJobLen = Math.max(3, ...runs.map((r) => r.jobName.length))
 	const jobWidth = Math.min(40, maxJobLen)
-	const slice = runs.slice(start, end)
+
+	// Diff mark column: [1] or [2] in cyan, blank otherwise. Not a Set — ordered.
+	const columns: Column<Run>[] = [
+		{
+			header: '',
+			width: 3,
+			render: (r) => {
+				const markIdx = diffMarks.indexOf(r.runId)
+				return markIdx >= 0 ? { text: `[${markIdx + 1}]`, colour: 'cyan' } : { text: '' }
+			},
+		},
+		{
+			header: t.runs.header.status,
+			width: 8,
+			render: (r) => ({ text: r.status, colour: statusColour(r.status) }),
+		},
+		{
+			header: t.runs.header.job,
+			width: jobWidth,
+			render: (r) => ({ text: r.jobName }),
+		},
+		{
+			header: t.runs.header.started,
+			width: 20,
+			render: (r) => ({ text: formatTimestamp(r.startTime) }),
+		},
+		{
+			header: t.runs.header.age,
+			width: 8,
+			render: (r) => ({ text: timeAgo(r.endTime ?? r.startTime) }),
+		},
+		{
+			header: t.runs.header.duration,
+			width: 9,
+			render: (r) => {
+				const start = tsToSeconds(r.startTime)
+				const end = tsToSeconds(r.endTime) ?? Math.floor(Date.now() / 1000)
+				if (start == null) return { text: '-' }
+				return { text: durationStr(r.startTime, end) }
+			},
+		},
+		{
+			header: t.runs.header.assets,
+			width: 7,
+			render: (r) => ({ text: r.assetSelection ? String(r.assetSelection.length) : '-' }),
+		},
+		{
+			header: t.runs.header.id,
+			flex: true,
+			render: (r) => ({ text: r.runId.slice(0, 12) }),
+		},
+	]
 
 	return (
 		<Box flexDirection="column">
 			{diffMarks.length > 0 && (
 				<Box marginBottom={1}>
 					<Text>
-						<Text bold>Diff:</Text> {diffMarks.length}/2 marked.{' '}
+						<Text bold>Diff:</Text> {t.runs.diffMarked(diffMarks.length)}{' '}
 						{diffMarks.length === 2 ? (
 							<>
-								Press <Text color="cyan">d</Text> to compare ·{' '}
-								<Text color="cyan">D</Text> to clear
+								Press <Text color="cyan">d</Text> to compare · <Text color="cyan">D</Text> to clear
 							</>
 						) : (
 							<>
-								Press <Text color="cyan">d</Text> on another run, or{' '}
-								<Text color="cyan">D</Text> to clear
+								Press <Text color="cyan">d</Text> on another run, or <Text color="cyan">D</Text> to
+								clear
 							</>
 						)}
 					</Text>
 				</Box>
 			)}
-			<Box flexDirection="column">
-				<Box>
-					<Box width={2} />
-					<Box width={4} />
-					<Box width={10}>
-						<Text bold>STATUS</Text>
-					</Box>
-					<Box width={jobWidth + 2}>
-						<Text bold>JOB</Text>
-					</Box>
-					<Box width={22}>
-						<Text bold>STARTED</Text>
-					</Box>
-					<Box width={10}>
-						<Text bold>AGE</Text>
-					</Box>
-					<Box flexGrow={1}>
-						<Text bold>ID</Text>
-					</Box>
-				</Box>
-				{slice.map((r, sliceIdx) => {
-					const i = start + sliceIdx
-					const selected = i === cursor
-					const markIdx = diffMarks.indexOf(r.runId)
-					return (
-						<Box key={r.runId}>
-							<Box width={2} flexShrink={0}>
-								<Text color="cyan">{selected ? '›' : ' '}</Text>
-							</Box>
-							<Box width={4} flexShrink={0}>
-								{markIdx >= 0 && <Text color="cyan">[{markIdx + 1}]</Text>}
-							</Box>
-							<Box width={10} flexShrink={0}>
-								<Text color={statusColour(r.status)}>{r.status}</Text>
-							</Box>
-							<Box width={jobWidth + 2} flexShrink={0}>
-								<Text color={selected ? 'cyan' : undefined} wrap="truncate">
-									{r.jobName}
-								</Text>
-							</Box>
-							<Box width={22} flexShrink={0}>
-								<Text>{formatTimestamp(r.startTime)}</Text>
-							</Box>
-							<Box width={10} flexShrink={0}>
-								<Text>{timeAgo(r.endTime ?? r.startTime)}</Text>
-							</Box>
-							<Box flexGrow={1}>
-								<Text>{r.runId.slice(0, 12)}</Text>
-							</Box>
-						</Box>
-					)
-				})}
-				{runs.length > visible && (
-					<Text dimColor>
-						{cursor + 1}/{runs.length} {start > 0 ? '↑' : ' '}
-						{end < runs.length ? '↓' : ' '}
-					</Text>
-				)}
-			</Box>
+			<Table
+				columns={columns}
+				data={runs}
+				cursor={cursor}
+				viewport={{ start, end, visible, total: runs.length }}
+			/>
 		</Box>
 	)
 }

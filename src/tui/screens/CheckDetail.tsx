@@ -1,5 +1,6 @@
 import { Box, Text, useInput } from 'ink'
 import type { AssetCheckEval, MetadataEntry } from '../../client/index.ts'
+import { t } from '../i18n/en.ts'
 
 interface Props {
 	check: AssetCheckEval
@@ -53,7 +54,9 @@ function isOpenable(e: MetadataEntry): boolean {
 }
 
 export function CheckDetail({ check, onBack, onMetadata }: Props) {
-	const openable = check.metadataEntries.map((e, i) => (isOpenable(e) ? i : -1)).filter((i) => i >= 0)
+	const openable = check.metadataEntries
+		.map((e, i) => (isOpenable(e) ? i : -1))
+		.filter((i) => i >= 0)
 	const firstOpenable = openable[0] ?? null
 
 	useInput((input, key) => {
@@ -86,12 +89,12 @@ export function CheckDetail({ check, onBack, onMetadata }: Props) {
 
 			<Box marginTop={1} flexDirection="column">
 				{check.metadataEntries.length === 0 ? (
-					<Text dimColor>(no metadata)</Text>
+					<Text dimColor>{t.checkDetail.noMetadata}</Text>
 				) : (
 					check.metadataEntries.map((e, i) => {
 						const open = isOpenable(e)
 						return (
-							<Box key={`${e.label}-${i}`}>
+							<Box key={`${e.label}-${e.__typename}`}>
 								<Box width={maxLabel + 2} flexShrink={0}>
 									<Text bold color="cyan">
 										{e.label}
@@ -111,7 +114,7 @@ export function CheckDetail({ check, onBack, onMetadata }: Props) {
 
 			{firstOpenable !== null && (
 				<Box marginTop={1}>
-					<Text dimColor>↵ open detail of first ›</Text>
+					<Text dimColor>{t.checkDetail.openFirstHint}</Text>
 				</Box>
 			)}
 		</Box>

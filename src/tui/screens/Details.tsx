@@ -1,6 +1,7 @@
 import { useScreenSize } from 'fullscreen-ink'
 import { Box, Text, useInput } from 'ink'
 import { useState } from 'react'
+import { t } from '../i18n/en.ts'
 
 interface Props {
 	title: string
@@ -40,16 +41,21 @@ export function Details({ title, body, onBack }: Props) {
 			<Box justifyContent="flex-end">
 				<Text dimColor>
 					{fits
-						? `${lines.length} lines`
-						: `${scroll + 1}-${scroll + slice.length}/${lines.length}${
-								atTop ? ' TOP' : atBottom ? ' END' : ''
-							}`}
+						? t.details.linesOnly(lines.length)
+						: t.details.position(
+								scroll + 1,
+								scroll + slice.length,
+								lines.length,
+								atTop ? ' TOP' : atBottom ? ' END' : '',
+							)}
 				</Text>
 			</Box>
 			<Box flexDirection="column" marginTop={1}>
-				{slice.map((line, i) => (
-					<Text key={`${scroll + i}`}>{line || ' '}</Text>
-				))}
+				{slice.map((line, i) => {
+					// Line text isn't unique (blank lines, repeats); compose with absolute position.
+					const absoluteIndex = scroll + i
+					return <Text key={`L${absoluteIndex}-${line.slice(0, 16)}`}>{line || ' '}</Text>
+				})}
 			</Box>
 		</Box>
 	)

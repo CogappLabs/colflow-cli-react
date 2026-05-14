@@ -8,6 +8,7 @@ import {
 	launchRun,
 	makeClient,
 } from '../../client/index.ts'
+import { t } from '../i18n/en.ts'
 import { useViewportWindow } from '../useViewport.ts'
 
 interface Props {
@@ -137,8 +138,8 @@ export function JobDetail({ url, auth, job, onBack, onLaunched, onSelectAsset }:
 		}
 		// Idle: navigate the asset tree
 		if (tree.length === 0) return
-		if (key.upArrow) setCursor((c) => Math.max(0, c - 1))
-		if (key.downArrow) setCursor((c) => Math.min(tree.length - 1, c + 1))
+		if (key.upArrow) setCursor((c) => (c <= 0 ? tree.length - 1 : c - 1))
+		if (key.downArrow) setCursor((c) => (c >= tree.length - 1 ? 0 : c + 1))
 		if (key.pageUp) setCursor((c) => Math.max(0, c - visible))
 		if (key.pageDown) setCursor((c) => Math.min(tree.length - 1, c + visible))
 		if (input === 'g') setCursor(0)
@@ -156,25 +157,25 @@ export function JobDetail({ url, auth, job, onBack, onLaunched, onSelectAsset }:
 			</Text>
 			{internal && (
 				<Box marginTop={1}>
-					<Text dimColor>(internal job, cannot launch)</Text>
+					<Text dimColor>{t.job.internal}</Text>
 				</Box>
 			)}
 
 			{job.description && (
 				<Box marginTop={1} flexDirection="column">
-					<Text bold>Description</Text>
+					<Text bold>{t.job.descriptionHeader}</Text>
 					<Text dimColor>{job.description}</Text>
 				</Box>
 			)}
 
 			<Box marginTop={1} flexDirection="column">
-				<Text bold>Assets ({assets?.length ?? '...'})</Text>
+				<Text bold>{t.job.assetsHeader(assets?.length ?? '...')}</Text>
 				{assetsErr ? (
 					<Text color="red">{assetsErr}</Text>
 				) : !assets ? (
-					<Spinner label="Loading assets..." />
+					<Spinner label={t.job.assetsLoading} />
 				) : tree.length === 0 ? (
-					<Text dimColor>(no assets)</Text>
+					<Text dimColor>{t.job.assetsEmpty}</Text>
 				) : (
 					<>
 						{slice.map((line, sliceIdx) => {
@@ -212,31 +213,27 @@ export function JobDetail({ url, auth, job, onBack, onLaunched, onSelectAsset }:
 			</Box>
 
 			<Box marginTop={1} flexDirection="column">
-				{phase.kind === 'idle' && !internal && (
-					<Text>
-						Press <Text color="cyan">l</Text> to launch this job.
-					</Text>
-				)}
+				{phase.kind === 'idle' && !internal && <Text>{t.job.launchPrompt('l')}</Text>}
 				{phase.kind === 'confirm' && (
 					<Box flexDirection="column">
-						<Text color="yellow">Launch job &quot;{job.name}&quot; with default config?</Text>
+						<Text color="yellow">{t.job.launchConfirm(job.name)}</Text>
 						<Text>
 							<Text color="green">y</Text> confirm · <Text color="red">n</Text> cancel
 						</Text>
 					</Box>
 				)}
-				{phase.kind === 'launching' && <Text color="cyan">Launching...</Text>}
+				{phase.kind === 'launching' && <Text color="cyan">{t.job.launching}</Text>}
 				{phase.kind === 'launched' && (
 					<Box flexDirection="column">
-						<Text color="green">Launched run {phase.runId}</Text>
-						<Text dimColor>↵ open run</Text>
+						<Text color="green">{t.job.launched(phase.runId)}</Text>
+						<Text dimColor>{t.job.launchedHint}</Text>
 					</Box>
 				)}
 				{phase.kind === 'error' && (
 					<Box flexDirection="column">
-						<Text color="red">Launch failed:</Text>
+						<Text color="red">{t.job.launchFailed}</Text>
 						<Text>{phase.message}</Text>
-						<Text dimColor>↵ dismiss · esc back</Text>
+						<Text dimColor>{t.job.launchDismissHint}</Text>
 					</Box>
 				)}
 			</Box>

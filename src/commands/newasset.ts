@@ -30,7 +30,7 @@ function toClassName(name: string): string {
 	return name
 		.split('_')
 		.filter((p) => p)
-		.map((p) => p[0]!.toUpperCase() + p.slice(1))
+		.map((p) => p[0]?.toUpperCase() + p.slice(1))
 		.join('')
 }
 
@@ -125,7 +125,7 @@ export async function runNewAsset({
 	let finalTitle = title
 	if (!finalTitle) {
 		const t = name.replaceAll('_', ' ')
-		finalTitle = t.length > 0 ? t[0]!.toUpperCase() + t.slice(1) : t
+		finalTitle = t.length > 0 ? t[0]?.toUpperCase() + t.slice(1) : t
 	}
 
 	const finalGroup = group ?? 'transform'

@@ -41,7 +41,7 @@ function printTree(node: SchemaNode, indent = ''): void {
 	for (let i = 0; i < children.length; i++) {
 		const last = i === children.length - 1
 		const branch = indent === '' ? '' : last ? '└─ ' : '├─ '
-		const childIndent = indent === '' ? '' : last ? indent.slice(0, -3) + '   ' : indent
+		const childIndent = indent === '' ? '' : last ? `${indent.slice(0, -3)}   ` : indent
 		const ch = children[i]!
 		process.stdout.write(`${childIndent}${branch}${ch.name}: ${ch.type}\n`)
 		if (ch.children?.length) {

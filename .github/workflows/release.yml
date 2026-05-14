@@ -1,0 +1,159 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - target: bun-darwin-arm64
+            runner: macos-latest
+            artifact: colflow-darwin-arm64
+          - target: bun-darwin-x64
+            runner: macos-13
+            artifact: colflow-darwin-amd64
+          - target: bun-linux-x64
+            runner: ubuntu-latest
+            artifact: colflow-linux-amd64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Compile binary
+        run: |
+          bun build src/cli.tsx \
+            --compile \
+            --target=${{ matrix.target }} \
+            --outfile=colflow
+
+      - name: Create tarball
+        run: tar -czvf ${{ matrix.artifact }}.tar.gz colflow
+
+      - name: Compute sha256
+        id: sha256
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            echo "hash=$(shasum -a 256 ${{ matrix.artifact }}.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          else
+            echo "hash=$(sha256sum ${{ matrix.artifact }}.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.tar.gz
+          if-no-files-found: error
+
+      - name: Save sha256
+        run: echo "${{ steps.sha256.outputs.hash }}" > ${{ matrix.artifact }}.sha256
+
+      - name: Upload sha256 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}-sha256
+          path: ${{ matrix.artifact }}.sha256
+          if-no-files-found: error
+
+  release:
+    name: release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect tarballs and sha256s
+        id: hashes
+        run: |
+          DARWIN_ARM64_SHA=$(cat artifacts/colflow-darwin-arm64-sha256/colflow-darwin-arm64.sha256)
+          DARWIN_AMD64_SHA=$(cat artifacts/colflow-darwin-amd64-sha256/colflow-darwin-amd64.sha256)
+          LINUX_AMD64_SHA=$(cat artifacts/colflow-linux-amd64-sha256/colflow-linux-amd64.sha256)
+
+          echo "darwin_arm64_sha=${DARWIN_ARM64_SHA}" >> "$GITHUB_OUTPUT"
+          echo "darwin_amd64_sha=${DARWIN_AMD64_SHA}" >> "$GITHUB_OUTPUT"
+          echo "linux_amd64_sha=${LINUX_AMD64_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/colflow-darwin-arm64/colflow-darwin-arm64.tar.gz
+            artifacts/colflow-darwin-amd64/colflow-darwin-amd64.tar.gz
+            artifacts/colflow-linux-amd64/colflow-linux-amd64.tar.gz
+          generate_release_notes: true
+
+      - name: Update Homebrew formula
+        env:
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          DARWIN_ARM64_SHA: ${{ steps.hashes.outputs.darwin_arm64_sha }}
+          DARWIN_AMD64_SHA: ${{ steps.hashes.outputs.darwin_amd64_sha }}
+          LINUX_AMD64_SHA: ${{ steps.hashes.outputs.linux_amd64_sha }}
+        run: |
+          VERSION="${TAG#v}"
+          REPO="https://github.com/CogappLabs/colflow-cli-react/releases/download/${TAG}"
+
+          cat > colflow.rb <<FORMULA
+          class Colflow < Formula
+            desc "TUI for Dagster collection-flow pipelines"
+            homepage "https://github.com/CogappLabs/colflow-cli-react"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "${REPO}/colflow-darwin-arm64.tar.gz"
+                sha256 "${DARWIN_ARM64_SHA}"
+              else
+                url "${REPO}/colflow-darwin-amd64.tar.gz"
+                sha256 "${DARWIN_AMD64_SHA}"
+              end
+            end
+
+            on_linux do
+              url "${REPO}/colflow-linux-amd64.tar.gz"
+              sha256 "${LINUX_AMD64_SHA}"
+            end
+
+            def install
+              bin.install "colflow"
+            end
+
+            test do
+              system "#{bin}/colflow", "--help"
+            end
+          end
+          FORMULA
+
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+          git clone \
+            "https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/CogappLabs/homebrew-tap.git" \
+            tap-repo
+
+          cp colflow.rb tap-repo/Formula/colflow.rb
+
+          cd tap-repo
+          git add Formula/colflow.rb
+          git commit -m "colflow ${TAG}"
+          git push

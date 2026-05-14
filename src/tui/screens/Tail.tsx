@@ -3,6 +3,7 @@ import { useScreenSize } from 'fullscreen-ink'
 import { Box, Text, useInput } from 'ink'
 import { useEffect, useState } from 'react'
 import { fetchRun, makeClient, type RunEvent } from '../../client/index.ts'
+import { t } from '../i18n/en.ts'
 
 interface Props {
 	url: string
@@ -108,17 +109,24 @@ export function Tail({ url, auth, runId, onBack }: Props) {
 				<Text color={status === 'FAILURE' ? 'red' : status === 'SUCCESS' ? 'green' : 'cyan'}>
 					[{status}]
 				</Text>
-				{paused && <Text color="yellow"> PAUSED</Text>}
-				{filter && <Text dimColor> filter:&quot;{filter}&quot;</Text>}
+				{paused && <Text color="yellow">{t.tail.paused}</Text>}
+				{filter && (
+					<Text dimColor>
+						{' '}
+						{t.tail.filterPrefix}&quot;{filter}&quot;
+					</Text>
+				)}
 			</Box>
 			<Box flexDirection="column" marginTop={1} flexGrow={1}>
 				{error ? (
-					<Text color="red">Error: {error}</Text>
+					<Text color="red">
+						{t.common.errorPrefix} {error}
+					</Text>
 				) : slice.length === 0 ? (
-					<Text dimColor>Waiting for events...</Text>
+					<Text dimColor>{t.tail.waiting}</Text>
 				) : (
-					slice.map((e, i) => (
-						<Box key={`${start + i}-${e.timestamp}`}>
+					slice.map((e) => (
+						<Box key={`${e.timestamp}-${e.message.slice(0, 32)}`}>
 							<Box width={9}>
 								<Text color={levelColour(e.level)}>{e.level}</Text>
 							</Box>
@@ -145,7 +153,7 @@ export function Tail({ url, auth, runId, onBack }: Props) {
 						/>
 					</Box>
 				) : (
-					<Text dimColor>space pause · / filter · c clear · ↑/↓ scroll · G bottom · q back</Text>
+					<Text dimColor>{t.tail.footer}</Text>
 				)}
 			</Box>
 		</Box>

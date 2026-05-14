@@ -6,7 +6,7 @@ export interface ClientOptions {
 }
 
 export function makeClient({ url, auth }: ClientOptions): GraphQLClient {
-	const endpoint = url.replace(/\/$/, '') + '/graphql'
+	const endpoint = `${url.replace(/\/$/, '')}/graphql`
 	const headers: Record<string, string> = {}
 	if (auth) headers['Dagster-Cloud-Api-Token'] = auth
 	return new GraphQLClient(endpoint, { headers })
@@ -18,6 +18,7 @@ export interface Run {
 	status: string
 	startTime: number | string | null
 	endTime: number | string | null
+	assetSelection?: { path: string[] }[] | null
 }
 
 export interface RunEvent {
@@ -41,7 +42,10 @@ const RUNS_QUERY = `
 	query Runs($limit: Int!, $statuses: [RunStatus!]) {
 		runsOrError(limit: $limit, filter: { statuses: $statuses }) {
 			... on Runs {
-				results { runId jobName status startTime endTime }
+				results {
+					runId jobName status startTime endTime
+					assetSelection { path }
+				}
 			}
 			... on PythonError { message }
 			... on InvalidPipelineRunsFilterError { message }
@@ -468,6 +472,7 @@ export interface AssetListNode {
 	description: string | null
 	kinds: string[]
 	staleStatus: string
+	hasAssetChecks: boolean
 	assetMaterializations: { timestamp: number | string; runId: string }[]
 }
 
@@ -479,6 +484,7 @@ const ASSETS_QUERY = `
 			description
 			kinds
 			staleStatus
+			hasAssetChecks
 			assetMaterializations(limit: 1) { timestamp runId }
 		}
 	}
@@ -530,6 +536,17 @@ export async function fetchJobAssets(
 ): Promise<JobAssetNode[]> {
 	const data = await client.request<{ assetNodes: JobAssetNode[] }>(JOB_ASSETS_QUERY)
 	return data.assetNodes.filter((n) => n.jobNames.includes(jobName))
+}
+
+export async function fetchJobAssetCounts(client: GraphQLClient): Promise<Map<string, number>> {
+	const data = await client.request<{ assetNodes: { jobNames: string[] }[] }>(
+		`query JobAssetCounts { assetNodes { jobNames } }`,
+	)
+	const counts = new Map<string, number>()
+	for (const n of data.assetNodes) {
+		for (const j of n.jobNames) counts.set(j, (counts.get(j) ?? 0) + 1)
+	}
+	return counts
 }
 
 export async function fetchJobs(client: GraphQLClient): Promise<Job[]> {

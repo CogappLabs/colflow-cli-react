@@ -10,7 +10,8 @@
     "build": "bun build src/cli.tsx --target=bun --outfile=dist/cli.js",
     "compile": "bun build src/cli.tsx --compile --outfile=dist/colflow",
     "check": "biome check --write && tsc --noEmit",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",

@@ -47,7 +47,7 @@ export function loadDotEnv(root?: string): void {
  */
 export function detectFromEnv(): Project | null {
 	const assetRootEnv = process.env.COLFLOW_ASSET_ROOT
-	if (assetRootEnv && assetRootEnv.startsWith('/')) {
+	if (assetRootEnv?.startsWith('/')) {
 		const p = detect(dirname(assetRootEnv))
 		if (p) return p
 	}
@@ -57,19 +57,19 @@ export function detectFromEnv(): Project | null {
 export function isLocalAssetRoot(): boolean {
 	const env = process.env.COLFLOW_ASSET_ROOT
 	if (!env) return true
-	return !/^[a-z]+:\/\//i.test(env)
+	return !/^[a-z][a-z0-9+.-]*:\/\//i.test(env)
 }
 
 export function assetRoot(project: Project | null): string {
 	const env = process.env.COLFLOW_ASSET_ROOT
-	if (env && env.startsWith('/')) return env
-	if (env && env.startsWith('.') && project) return resolve(project.root, env)
+	if (env?.startsWith('/')) return env
+	if (env?.startsWith('.') && project) return resolve(project.root, env)
 	return project?.outputDir ?? resolve('./output')
 }
 
 export function resolveAssetPath(metaPath: string, project: Project | null): string {
 	if (metaPath.startsWith('/')) return metaPath
-	if (/^[a-z]+:\/\//i.test(metaPath)) return metaPath
+	if (/^[a-z][a-z0-9+.-]*:\/\//i.test(metaPath)) return metaPath
 	if (metaPath.startsWith('output/')) {
 		const base = assetRoot(project)
 		return resolve(base, metaPath.slice('output/'.length))

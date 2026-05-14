@@ -3,6 +3,7 @@ import { Box, Text, useInput } from 'ink'
 import { useState } from 'react'
 import type { MetadataEntry } from '../../client/index.ts'
 import { type Cell, type Column, Table } from '../components/Table.tsx'
+import { t } from '../i18n/en.ts'
 import { useViewportWindow } from '../useViewport.ts'
 
 interface Props {
@@ -35,10 +36,7 @@ function buildSchema(entry: MetadataEntry): {
 		name: c.name,
 		type: c.type,
 		nullable: c.constraints.nullable ? 'yes' : 'no',
-		constraints: [
-			...(c.constraints.unique ? ['unique'] : []),
-			...c.constraints.other,
-		].join(', '),
+		constraints: [...(c.constraints.unique ? ['unique'] : []), ...c.constraints.other].join(', '),
 	}))
 	const columns: Column<SchemaRow>[] = [
 		{ header: 'NAME', render: (r): Cell => ({ text: r.name }) },
@@ -122,8 +120,7 @@ export function MetadataDetail({ entry, onBack }: Props) {
 	const [scroll, setScroll] = useState(0)
 
 	const isStructured =
-		entry.__typename === 'TableSchemaMetadataEntry' ||
-		entry.__typename === 'TableMetadataEntry'
+		entry.__typename === 'TableSchemaMetadataEntry' || entry.__typename === 'TableMetadataEntry'
 
 	const built: { columns: Column<unknown>[]; data: unknown[] } = (() => {
 		if (entry.__typename === 'TableSchemaMetadataEntry') {
@@ -165,10 +162,10 @@ export function MetadataDetail({ entry, onBack }: Props) {
 				<Box flexGrow={1} />
 				<Text dimColor>
 					{built.data.length === 0
-						? '(empty)'
+						? t.metadataDetail.empty
 						: built.data.length > visible
 							? `${start + 1}-${start + slice.length}/${built.data.length}`
-							: `${built.data.length} ${isStructured ? 'rows' : 'lines'}`}
+							: `${built.data.length} ${isStructured ? t.metadataDetail.rowsSuffix : t.metadataDetail.linesSuffix}`}
 				</Text>
 			</Box>
 			<Box marginTop={1}>

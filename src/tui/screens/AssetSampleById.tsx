@@ -2,6 +2,7 @@ import { TextInput } from '@inkjs/ui'
 import { Box, Text, useInput } from 'ink'
 import { useEffect, useState } from 'react'
 import { inspectParquet } from '../../parquet/index.ts'
+import { t } from '../i18n/en.ts'
 
 interface Props {
 	parquetPath: string
@@ -34,8 +35,13 @@ export function AssetSampleById({ parquetPath, assetName, onSubmit, onBack }: Pr
 		if (key.escape) onBack()
 	})
 
-	if (error) return <Text color="red">Error: {error}</Text>
-	if (!columns) return <Text dimColor>Reading parquet...</Text>
+	if (error)
+		return (
+			<Text color="red">
+				{t.common.errorPrefix} {error}
+			</Text>
+		)
+	if (!columns) return <Text dimColor>{t.assetSampleById.loading}</Text>
 
 	return (
 		<Box flexDirection="column">
@@ -46,7 +52,7 @@ export function AssetSampleById({ parquetPath, assetName, onSubmit, onBack }: Pr
 				{step === 'column' ? (
 					<>
 						<Text>
-							Column to filter on (default <Text color="cyan">{defaultColumn}</Text>):
+							{t.assetSampleById.columnPrompt} (default <Text color="cyan">{defaultColumn}</Text>):
 						</Text>
 						<Box marginTop={1}>
 							<Text>{'> '}</Text>
@@ -64,7 +70,7 @@ export function AssetSampleById({ parquetPath, assetName, onSubmit, onBack }: Pr
 				) : (
 					<>
 						<Text>
-							Value for <Text color="cyan">{column}</Text>:
+							{t.assetSampleById.valuePrompt} <Text color="cyan">{column}</Text>:
 						</Text>
 						<Box marginTop={1}>
 							<Text>{'> '}</Text>
@@ -78,7 +84,7 @@ export function AssetSampleById({ parquetPath, assetName, onSubmit, onBack }: Pr
 				)}
 			</Box>
 			<Box marginTop={1}>
-				<Text dimColor>↵ submit · esc back</Text>
+				<Text dimColor>{t.assetSampleById.footer}</Text>
 			</Box>
 		</Box>
 	)

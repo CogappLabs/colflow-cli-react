@@ -9,6 +9,8 @@ import {
 	terminateRun,
 } from '../../client/index.ts'
 import { formatTimestamp, statusColour, tsToSeconds } from '../../format/index.ts'
+import { type Column, Table } from '../components/Table.tsx'
+import { t } from '../i18n/en.ts'
 import { useViewportWindow } from '../useViewport.ts'
 
 interface Props {
@@ -49,6 +51,25 @@ function duration(start: number | null, end: number | null): string {
 function renderAssetKey(step: RunStep): string {
 	if (step.assetKey && step.assetKey.length > 0) return step.assetKey.join('/')
 	return step.stepKey
+}
+
+function checksCell(s: RunStep): { text: string; colour?: string; dim?: boolean } {
+	if (s.failedChecks.length > 0) {
+		return {
+			text: `✗ ${s.failedChecks.length} failed: ${s.failedChecks.join(', ')}`,
+			colour: 'red',
+		}
+	}
+	if (s.warnedChecks.length > 0) {
+		return {
+			text: `⚠ ${s.warnedChecks.length} warn: ${s.warnedChecks.join(', ')}`,
+			colour: 'yellow',
+		}
+	}
+	if (s.passedCheckCount > 0) {
+		return { text: `✓ ${s.passedCheckCount} ok`, colour: 'green' }
+	}
+	return { text: '-', dim: true }
 }
 
 type CancelPhase =
@@ -109,9 +130,7 @@ export function RunDetail({ url, auth, run, onBack, onSelectStep }: Props) {
 				const client = makeClient({ url, auth })
 				terminateRun(client, run.runId)
 					.then((status) => setCancelPhase({ kind: 'cancelled', status }))
-					.catch((e: Error) =>
-						setCancelPhase({ kind: 'error', message: String(e?.message ?? e) }),
-					)
+					.catch((e: Error) => setCancelPhase({ kind: 'error', message: String(e?.message ?? e) }))
 				return
 			}
 			if (input === 'n' || key.escape) setCancelPhase({ kind: 'idle' })
@@ -130,8 +149,8 @@ export function RunDetail({ url, auth, run, onBack, onSelectStep }: Props) {
 			return
 		}
 		if (!steps || steps.length === 0) return
-		if (key.upArrow) setCursor((c) => Math.max(0, c - 1))
-		if (key.downArrow) setCursor((c) => Math.min(steps.length - 1, c + 1))
+		if (key.upArrow) setCursor((c) => (c <= 0 ? steps.length - 1 : c - 1))
+		if (key.downArrow) setCursor((c) => (c >= steps.length - 1 ? 0 : c + 1))
 		if (key.pageUp) setCursor((c) => Math.max(0, c - visible))
 		if (key.pageDown) setCursor((c) => Math.min(steps.length - 1, c + visible))
 		if (input === 'g') setCursor(0)
@@ -146,34 +165,36 @@ export function RunDetail({ url, auth, run, onBack, onSelectStep }: Props) {
 	const assetWidth = Math.min(60, maxAssetLen)
 	// Reserve: shell(4) + run header(2) + section title(1) + table header(1) + scroll hint(1) + margins(3)
 	const { start, end, visible } = useViewportWindow(steps?.length ?? 0, cursor, 12)
-	const slice = steps ? steps.slice(start, end) : []
 
-	function renderChecks(s: RunStep): React.ReactNode {
-		if (s.failedChecks.length > 0) {
-			return (
-				<Text color="red">
-					✗ {s.failedChecks.length} failed: {s.failedChecks.join(', ')}
-				</Text>
-			)
-		}
-		if (s.warnedChecks.length > 0) {
-			return (
-				<Text color="yellow">
-					⚠ {s.warnedChecks.length} warn: {s.warnedChecks.join(', ')}
-				</Text>
-			)
-		}
-		if (s.passedCheckCount > 0) {
-			return <Text color="green">✓ {s.passedCheckCount} ok</Text>
-		}
-		return <Text dimColor>-</Text>
-	}
+	const columns: Column<RunStep>[] = [
+		{
+			header: t.run.stepHeader.status,
+			width: 14,
+			render: (s) => ({ text: s.status, colour: stepStatusColour(s.status) }),
+		},
+		{
+			header: t.run.stepHeader.asset,
+			width: assetWidth,
+			render: (s) => ({ text: renderAssetKey(s) }),
+		},
+		{
+			header: t.run.stepHeader.time,
+			width: 6,
+			render: (s) => ({ text: duration(s.startTime, s.endTime) }),
+		},
+		{
+			header: t.run.stepHeader.checks,
+			flex: true,
+			render: (s) => checksCell(s),
+		},
+	]
 
 	return (
 		<Box flexDirection="column">
 			<Box flexDirection="column">
 				<Text>
-					<Text bold>Status:</Text> <Text color={statusColour(run.status)}>{run.status}</Text>
+					<Text bold>{t.run.statusLabel}</Text>{' '}
+					<Text color={statusColour(run.status)}>{run.status}</Text>
 					{'   '}
 					{formatTimestamp(run.startTime)} → {formatTimestamp(run.endTime)}
 				</Text>
@@ -181,7 +202,7 @@ export function RunDetail({ url, auth, run, onBack, onSelectStep }: Props) {
 
 			{cancelPhase.kind === 'confirm' && (
 				<Box marginTop={1} flexDirection="column">
-					<Text color="yellow">Cancel run {run.runId.slice(0, 8)}?</Text>
+					<Text color="yellow">{t.run.cancelConfirm(run.runId.slice(0, 8))}</Text>
 					<Text>
 						<Text color="green">y</Text> confirm · <Text color="red">n</Text> cancel
 					</Text>
@@ -189,77 +210,39 @@ export function RunDetail({ url, auth, run, onBack, onSelectStep }: Props) {
 			)}
 			{cancelPhase.kind === 'cancelling' && (
 				<Box marginTop={1}>
-					<Text color="cyan">Cancelling...</Text>
+					<Text color="cyan">{t.run.cancelling}</Text>
 				</Box>
 			)}
 			{cancelPhase.kind === 'cancelled' && (
 				<Box marginTop={1} flexDirection="column">
-					<Text color="yellow">Cancelled — status: {cancelPhase.status}</Text>
-					<Text dimColor>↵ dismiss</Text>
+					<Text color="yellow">{t.run.cancelled(cancelPhase.status)}</Text>
+					<Text dimColor>{t.common.dismissHint}</Text>
 				</Box>
 			)}
 			{cancelPhase.kind === 'error' && (
 				<Box marginTop={1} flexDirection="column">
-					<Text color="red">Cancel failed: {cancelPhase.message}</Text>
-					<Text dimColor>↵ dismiss</Text>
+					<Text color="red">{t.run.cancelFailed(cancelPhase.message)}</Text>
+					<Text dimColor>{t.common.dismissHint}</Text>
 				</Box>
 			)}
 
 			<Box marginTop={1} flexDirection="column">
-				<Text bold>Assets / steps</Text>
+				<Text bold>{t.run.assetsHeader}</Text>
 				{error ? (
-					<Text color="red">Error: {error}</Text>
+					<Text color="red">
+						{t.common.errorPrefix} {error}
+					</Text>
 				) : !steps ? (
-					<Spinner label="Loading steps..." />
+					<Spinner label={t.common.loading} />
 				) : steps.length === 0 ? (
-					<Text dimColor>No steps recorded.</Text>
+					<Text dimColor>{t.run.empty}</Text>
 				) : (
-					<Box flexDirection="column">
-						<Box>
-							<Box width={2} />
-							<Box width={16}>
-								<Text bold>STATUS</Text>
-							</Box>
-							<Box width={assetWidth + 2}>
-								<Text bold>ASSET</Text>
-							</Box>
-							<Box width={8}>
-								<Text bold>TIME</Text>
-							</Box>
-							<Box flexGrow={1}>
-								<Text bold>CHECKS</Text>
-							</Box>
-						</Box>
-						{slice.map((s, sliceIdx) => {
-							const i = start + sliceIdx
-							const selected = i === cursor
-							return (
-								<Box key={s.stepKey}>
-									<Box width={2} flexShrink={0}>
-										<Text color="cyan">{selected ? '›' : ' '}</Text>
-									</Box>
-									<Box width={16} flexShrink={0}>
-										<Text color={stepStatusColour(s.status)}>{s.status}</Text>
-									</Box>
-									<Box width={assetWidth + 2} flexShrink={0}>
-										<Text color={selected ? 'cyan' : undefined} wrap="truncate">
-											{renderAssetKey(s)}
-										</Text>
-									</Box>
-									<Box width={8} flexShrink={0}>
-										<Text>{duration(s.startTime, s.endTime)}</Text>
-									</Box>
-									<Box flexGrow={1}>{renderChecks(s)}</Box>
-								</Box>
-							)
-						})}
-						{steps && steps.length > visible && (
-							<Text dimColor>
-								{cursor + 1}/{steps.length} {start > 0 ? '↑' : ' '}
-								{end < steps.length ? '↓' : ' '}
-							</Text>
-						)}
-					</Box>
+					<Table
+						columns={columns}
+						data={steps}
+						cursor={cursor}
+						viewport={{ start, end, visible, total: steps.length }}
+					/>
 				)}
 			</Box>
 		</Box>

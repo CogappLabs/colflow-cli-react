@@ -28,7 +28,15 @@ export const t = {
 	},
 
 	runs: {
-		header: { status: 'STATUS', job: 'JOB', started: 'STARTED', age: 'AGE', id: 'ID' },
+		header: {
+			status: 'STATUS',
+			job: 'JOB',
+			started: 'STARTED',
+			age: 'AGE',
+			duration: 'DURATION',
+			assets: 'ASSETS',
+			id: 'ID',
+		},
 		empty: 'No runs found.',
 		diffMarked: (n: number) => `${n}/2 marked.`,
 		diffPressOther: 'Press d on another run, or D to clear',
@@ -47,14 +55,13 @@ export const t = {
 	},
 
 	assets: {
-		header: { asset: 'ASSET', group: 'GROUP', lastMat: 'LAST MAT', stale: 'STALE' },
+		header: { asset: 'ASSET', group: 'GROUP', lastMat: 'LAST MAT', stale: 'STALE', checks: 'CHECKS' },
 		empty: 'No assets found.',
 		never: 'never',
 		filterEdit: 'c clear · / edit',
 		selectedHint: 'm materialise · A clear',
 		selectedLabel: 'Selected:',
-		materialiseConfirm: (n: number, names: string) =>
-			`Materialise ${n} asset(s)? ${names}`,
+		materialiseConfirm: (n: number, names: string) => `Materialise ${n} asset(s)? ${names}`,
 	},
 
 	asset: {
@@ -82,6 +89,7 @@ export const t = {
 		materialiseConfirm: (name: string) => `Materialise "${name}"?`,
 		launching: 'Launching...',
 		launchFailed: (msg: string) => `Launch failed: ${msg}`,
+		claudeNoTarget: 'No failure or failed check selected.',
 	},
 
 	assetSchema: {
@@ -98,13 +106,14 @@ export const t = {
 
 	assetSampleById: {
 		columnPrompt: 'Column to filter on',
+		columnPromptDefault: (col: string) => `Column to filter on (default ${col}):`,
 		valuePrompt: 'Value for',
 		footer: '↵ submit · esc back',
 		loading: 'Reading parquet...',
 	},
 
 	jobs: {
-		header: { job: 'JOB', description: 'DESCRIPTION' },
+		header: { job: 'JOB', description: 'DESCRIPTION', assets: 'ASSETS' },
 		empty: 'No jobs found.',
 	},
 
@@ -121,6 +130,7 @@ export const t = {
 		launched: (id: string) => `Launched run ${id}`,
 		launchedHint: '↵ open run',
 		launchFailed: 'Launch failed:',
+		launchDismissHint: '↵ dismiss · esc back',
 	},
 
 	sensors: {
@@ -136,6 +146,29 @@ export const t = {
 		footer: 'space pause · / filter · c clear · ↑/↓ scroll · G bottom · q back',
 	},
 
+	checkDetail: {
+		noMetadata: '(no metadata)',
+		openFirstHint: '↵ open detail of first ›',
+	},
+
+	metadataDetail: {
+		empty: '(empty)',
+		rowsSuffix: 'rows',
+		linesSuffix: 'lines',
+	},
+
+	runsDiff: {
+		statusLabel: 'Status',
+		jobLabel: 'Job',
+		durationLabel: 'Duration',
+		startedLabel: 'Started',
+		succeededLabel: 'Succeeded',
+		failedLabel: 'Failed',
+		stepHeader: 'STEP',
+		diffCount: (n: number) => `${n} step(s) differ`,
+		noDifferences: '(no differences)',
+	},
+
 	details: {
 		linesOnly: (n: number) => `${n} lines`,
 		position: (start: number, end: number, total: number, marker: string) =>
@@ -148,6 +181,28 @@ export const t = {
 		reloading: 'Reloading...',
 		failed: (msg: string) => `Reload failed: ${msg}`,
 		backHint: '↵ back',
+	},
+
+	esCheck: {
+		connecting: 'Connecting to Elasticsearch...',
+		urlLabel: 'URL:',
+		clusterLabel: 'Cluster:',
+		statusLabel: 'Status:',
+		nodesLabel: 'Nodes:',
+		shardsLabel: 'Shards:',
+		dataPrefix: '(data:',
+		activeSuffix: 'active /',
+		primarySuffix: 'primary',
+		unassignedSuffix: 'unassigned',
+		hintLabel: 'Hint:',
+		filterLabel: 'filter:',
+		filterControls: 'c clear · / edit',
+		indicesTab: (n: number) => `[i] Indices (${n})`,
+		aliasesTab: (n: number) => `[a] Aliases (${n})`,
+		noIndices: '(no indices)',
+		noAliases: '(no aliases)',
+		header: { index: 'INDEX', health: 'HEALTH', docs: 'DOCS', size: 'SIZE' },
+		aliasHeader: { alias: 'ALIAS', index: 'INDEX', write: 'WRITE' },
 	},
 
 	common: {
@@ -167,9 +222,8 @@ export const t = {
 		run: '↑/↓ · ↵ asset · t tail · x cancel · esc/← back',
 		tail: 'space pause · / filter · c clear · ↑/↓ scroll · esc/← back',
 		asset:
-			'↑/↓ · ↵ open · m materialise · r recheck (FAIL) · s schema · d sample · i by-ID · esc/← back',
-		assets:
-			'space select · m materialise · a/A all/none · / search · ↵ open · esc/← back',
+			'↑/↓ · ↵ open · m materialise · r recheck · c claude · s schema · d sample · i by-ID · esc/← back',
+		assets: 'space select · m materialise · a/A all/none · / search · ↵ open · esc/← back',
 		assetSchema: '↑/↓ pgUp/pgDn g/G · esc/← back',
 		assetSample: '↑/↓ row · ↵ full row · esc/← back',
 		assetSampleById: '↵ submit · esc back',

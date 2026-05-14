@@ -1,14 +1,10 @@
 import { Box, Text, useInput } from 'ink'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { resolveUrl } from '../../es/index.ts'
+import { onWorkspaceResolved } from '../../project/workspace.ts'
+import { t } from '../i18n/en.ts'
 
-export type MenuChoice =
-	| 'runs'
-	| 'assets'
-	| 'jobs'
-	| 'sensors'
-	| 'es-check'
-	| 'reload'
-	| 'quit'
+export type MenuChoice = 'runs' | 'assets' | 'jobs' | 'sensors' | 'es-check' | 'reload' | 'quit'
 
 interface MenuItem {
 	choice: MenuChoice
@@ -17,30 +13,45 @@ interface MenuItem {
 	enabled: boolean
 }
 
-const ITEMS: MenuItem[] = [
-	{ choice: 'runs', label: 'Runs', hint: 'browse recent runs + drill into assets', enabled: true },
-	{
-		choice: 'assets',
-		label: 'Assets',
-		hint: 'browse all assets, materialisation + stale status',
-		enabled: true,
-	},
-	{ choice: 'jobs', label: 'Jobs', hint: 'list all jobs in the repository', enabled: true },
-	{
-		choice: 'sensors',
-		label: 'Sensors',
-		hint: 'list sensors with status + recent ticks',
-		enabled: true,
-	},
-	{ choice: 'es-check', label: 'Elasticsearch', hint: '(TODO)', enabled: false },
-	{
-		choice: 'reload',
-		label: 'Reload Dagster',
-		hint: 'reload the code location after editing python',
-		enabled: true,
-	},
-	{ choice: 'quit', label: 'Quit', hint: '', enabled: true },
-]
+function buildItems(): MenuItem[] {
+	const esConfigured =
+		!!process.env.ELASTICSEARCH_URL ||
+		!!process.env.ELASTICO_URL ||
+		!!process.env.ELASTICSEARCH_API_KEY ||
+		!!process.env.ELASTICO_API_KEY
+	const esHint = esConfigured
+		? `${t.menu.items.esCheck.hint} (${resolveUrl(undefined)})`
+		: 'set ELASTICSEARCH_URL or ELASTICO_URL to enable'
+	return [
+		{ choice: 'runs', label: t.menu.items.runs.label, hint: t.menu.items.runs.hint, enabled: true },
+		{
+			choice: 'assets',
+			label: t.menu.items.assets.label,
+			hint: t.menu.items.assets.hint,
+			enabled: true,
+		},
+		{ choice: 'jobs', label: t.menu.items.jobs.label, hint: t.menu.items.jobs.hint, enabled: true },
+		{
+			choice: 'sensors',
+			label: t.menu.items.sensors.label,
+			hint: t.menu.items.sensors.hint,
+			enabled: true,
+		},
+		{
+			choice: 'es-check',
+			label: t.menu.items.esCheck.label,
+			hint: esHint,
+			enabled: esConfigured,
+		},
+		{
+			choice: 'reload',
+			label: t.menu.items.reload.label,
+			hint: t.menu.items.reload.hint,
+			enabled: true,
+		},
+		{ choice: 'quit', label: t.menu.items.quit.label, hint: t.menu.items.quit.hint, enabled: true },
+	]
+}
 
 interface Props {
 	onSelect: (choice: MenuChoice) => void
@@ -48,6 +59,9 @@ interface Props {
 
 export function Menu({ onSelect }: Props) {
 	const [cursor, setCursor] = useState(0)
+	const [, bump] = useState(0)
+	useEffect(() => onWorkspaceResolved(() => bump((n) => n + 1)), [])
+	const ITEMS = buildItems()
 
 	useInput((input, key) => {
 		if (input === 'q' || key.escape) {
@@ -59,7 +73,7 @@ export function Menu({ onSelect }: Props) {
 				let n = c
 				do {
 					n = (n - 1 + ITEMS.length) % ITEMS.length
-				} while (!ITEMS[n]!.enabled && n !== c)
+				} while (!ITEMS[n]?.enabled && n !== c)
 				return n
 			})
 		}
@@ -68,10 +82,11 @@ export function Menu({ onSelect }: Props) {
 				let n = c
 				do {
 					n = (n + 1) % ITEMS.length
-				} while (!ITEMS[n]!.enabled && n !== c)
+				} while (!ITEMS[n]?.enabled && n !== c)
 				return n
 			})
 		}
+		// Menu already wraps via modulo above.
 		if (key.return) {
 			const item = ITEMS[cursor]
 			if (item?.enabled) onSelect(item.choice)
@@ -82,7 +97,7 @@ export function Menu({ onSelect }: Props) {
 
 	return (
 		<Box flexDirection="column">
-			<Text bold>What would you like to do?</Text>
+			<Text bold>{t.menu.title}</Text>
 			<Box marginTop={1} flexDirection="column">
 				{ITEMS.map((item, i) => {
 					const selected = i === cursor

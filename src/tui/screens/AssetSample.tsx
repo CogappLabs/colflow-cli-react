@@ -2,6 +2,7 @@ import { Spinner } from '@inkjs/ui'
 import { Box, Text, useInput } from 'ink'
 import { useEffect, useState } from 'react'
 import { sampleRows } from '../../parquet/index.ts'
+import { t } from '../i18n/en.ts'
 
 interface Props {
 	parquetPath: string
@@ -57,8 +58,8 @@ export function AssetSample({
 			return
 		}
 		if (!rows || rows.length === 0) return
-		if (key.upArrow) setCursor((c) => Math.max(0, c - 1))
-		if (key.downArrow) setCursor((c) => Math.min(rows.length - 1, c + 1))
+		if (key.upArrow) setCursor((c) => (c <= 0 ? rows.length - 1 : c - 1))
+		if (key.downArrow) setCursor((c) => (c >= rows.length - 1 ? 0 : c + 1))
 		if (key.return) {
 			const r = rows[cursor]
 			if (r) {
@@ -81,8 +82,13 @@ export function AssetSample({
 		}
 	})
 
-	if (error) return <Text color="red">Error: {error}</Text>
-	if (!rows) return <Spinner label="Reading parquet..." />
+	if (error)
+		return (
+			<Text color="red">
+				{t.common.errorPrefix} {error}
+			</Text>
+		)
+	if (!rows) return <Spinner label={t.assetSampleById.loading} />
 	if (rows.length === 0) {
 		return (
 			<Box flexDirection="column">
@@ -91,8 +97,10 @@ export function AssetSample({
 				</Text>
 				<Text dimColor>
 					{filters.length > 0
-						? `(no rows matched ${filters.map((f) => `${f.path.join('.')}=${f.value}`).join(', ')})`
-						: '(no rows)'}
+						? t.assetSample.emptyFiltered(
+								filters.map((f) => `${f.path.join('.')}=${f.value}`).join(', '),
+							)
+						: t.assetSample.empty}
 				</Text>
 			</Box>
 		)
@@ -109,10 +117,12 @@ export function AssetSample({
 			</Text>
 			<Box marginTop={1}>
 				<Text>
-					Row {cursor + 1} of {rows.length}
+					{t.assetSample.rowCounter(cursor + 1, rows.length)}
 					{filters.length > 0 && (
 						<Text dimColor>
-							{'   '}filter: {filters.map((f) => `${f.path.join('.')}=${f.value}`).join(', ')}
+							{'   '}
+							{t.assetSample.filterLabel}{' '}
+							{filters.map((f) => `${f.path.join('.')}=${f.value}`).join(', ')}
 						</Text>
 					)}
 				</Text>
@@ -132,7 +142,7 @@ export function AssetSample({
 				))}
 			</Box>
 			<Box marginTop={1}>
-				<Text dimColor>↑/↓ row · ↵ full row · esc back</Text>
+				<Text dimColor>{t.assetSample.fullRowFooter}</Text>
 			</Box>
 		</Box>
 	)

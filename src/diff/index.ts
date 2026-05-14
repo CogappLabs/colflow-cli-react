@@ -22,10 +22,7 @@ export function statusOf(s: StepSummary | undefined): 'OK' | 'FAILED' | 'MISSING
 	return s.hasError ? 'FAILED' : 'OK'
 }
 
-export function durationStr(
-	start: number | string | null,
-	end: number | string | null,
-): string {
+export function durationStr(start: number | string | null, end: number | string | null): string {
 	const a = tsToSeconds(start)
 	const b = tsToSeconds(end)
 	if (a == null || b == null) return 'unknown'

@@ -45,12 +45,16 @@ function resolveEnvRef(v: string | undefined): string | undefined {
 }
 
 function resolveUrl(flag: string | undefined): string {
-	const v = resolveEnvRef(flag) ?? process.env.ELASTICSEARCH_URL ?? 'http://localhost:9200'
+	const v =
+		resolveEnvRef(flag) ??
+		process.env.ELASTICSEARCH_URL ??
+		process.env.ELASTICO_URL ??
+		'http://localhost:9200'
 	return v.replace(/\/$/, '')
 }
 
 function resolveKey(flag: string | undefined): string | undefined {
-	return resolveEnvRef(flag) ?? process.env.ELASTICSEARCH_API_KEY
+	return resolveEnvRef(flag) ?? process.env.ELASTICSEARCH_API_KEY ?? process.env.ELASTICO_API_KEY
 }
 
 async function esGet<T>(url: string, key: string | undefined, insecure: boolean): Promise<T> {
@@ -58,9 +62,8 @@ async function esGet<T>(url: string, key: string | undefined, insecure: boolean)
 	if (key) headers.Authorization = `ApiKey ${key}`
 	const res = await fetch(url, {
 		headers,
-		// @ts-expect-error - Bun supports tls option
 		tls: insecure ? { rejectUnauthorized: false } : undefined,
-	})
+	} as RequestInit)
 	const body = await res.text()
 	if (res.status >= 400) {
 		let type = ''
@@ -105,7 +108,7 @@ function hintForESError(err: ESError, hasKey: boolean): string {
 	if (err.status === 401) {
 		return hasKey
 			? 'API key rejected. Verify it for this cluster.'
-			: 'No API key set. Pass --api-key or set ELASTICSEARCH_API_KEY.'
+			: 'No API key set. Pass --api-key or set ELASTICSEARCH_API_KEY (or ELASTICO_API_KEY).'
 	}
 	if (err.status === 403) return 'Authenticated but lacks permissions.'
 	if (err.status === 404) {

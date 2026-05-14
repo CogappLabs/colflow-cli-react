@@ -6,6 +6,7 @@ import { runCancel } from './commands/cancel.ts'
 import { runConfig } from './commands/config.ts'
 import { runDevServer } from './commands/devserver.ts'
 import { runDiff } from './commands/diff.ts'
+import { runDuckdb } from './commands/duckdb.ts'
 import { runErrors } from './commands/errors.ts'
 import { runEsCheck } from './commands/escheck.ts'
 import { runGraph } from './commands/graph.ts'
@@ -53,6 +54,7 @@ const cli = meow(
 	  diff <r1> <r2>          Compare two runs side by side
 	  start                   uv run dg dev (foreground)
 	  debug                   uv run dg dev with DAGSTER_DEBUG=1
+	  duckdb [--detach]       Mount all parquets in COLFLOW_ASSET_ROOT and open DuckDB --ui
 	  inspect <parquet>       Parquet schema + null counts
 	  sample <parquet>        Sample rows (--where field=value, --rows N)
 	  es-check [index]        Elasticsearch health + index check
@@ -94,6 +96,7 @@ const cli = meow(
 			job: { type: 'string' },
 			run1: { type: 'string' },
 			run2: { type: 'string' },
+			detach: { type: 'boolean', default: false },
 		},
 	},
 )
@@ -188,6 +191,9 @@ async function main() {
 			return
 		case 'debug':
 			await runDevServer({ debug: true })
+			return
+		case 'duckdb':
+			await runDuckdb({ detach: cli.flags.detach ?? false })
 			return
 		case 'tail':
 			await runTail({

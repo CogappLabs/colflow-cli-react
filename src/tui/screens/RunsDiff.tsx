@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { fetchRun, makeClient, type RunDetail } from '../../client/index.ts'
 import { computeDiff, type DiffRow, durationStr } from '../../diff/index.ts'
 import { statusColour, timeAgo } from '../../format/index.ts'
+import { type Column, Table } from '../components/Table.tsx'
+import { t } from '../i18n/en.ts'
 import { useViewportWindow } from '../useViewport.ts'
 
 interface Props {
@@ -45,21 +47,43 @@ export function RunsDiff({ url, auth, runId1, runId2, onBack }: Props) {
 			return
 		}
 		if (diffs.length === 0) return
-		if (key.upArrow) setCursor((c) => Math.max(0, c - 1))
-		if (key.downArrow) setCursor((c) => Math.min(diffs.length - 1, c + 1))
+		if (key.upArrow) setCursor((c) => (c <= 0 ? diffs.length - 1 : c - 1))
+		if (key.downArrow) setCursor((c) => (c >= diffs.length - 1 ? 0 : c + 1))
 		if (key.pageUp) setCursor((c) => Math.max(0, c - visible))
 		if (key.pageDown) setCursor((c) => Math.min(diffs.length - 1, c + visible))
 		if (input === 'g') setCursor(0)
 		if (input === 'G') setCursor(diffs.length - 1)
 	})
 
-	if (error) return <Text color="red">Error: {error}</Text>
-	if (!r1 || !r2) return <Spinner label="Loading runs..." />
+	if (error)
+		return (
+			<Text color="red">
+				{t.common.errorPrefix} {error}
+			</Text>
+		)
+	if (!r1 || !r2) return <Spinner label={t.common.loading} />
 
 	const id1 = r1.runId.slice(0, 8)
 	const id2 = r2.runId.slice(0, 8)
-	const slice = diffs.slice(start, end)
 	const maxStep = Math.max(4, ...diffs.map((d) => d.step.length))
+
+	const columns: Column<DiffRow>[] = [
+		{
+			header: t.runsDiff.stepHeader,
+			width: maxStep,
+			render: (d) => ({ text: d.step }),
+		},
+		{
+			header: id1,
+			width: 10,
+			render: (d) => ({ text: d.left, colour: colourFor(d.left) }),
+		},
+		{
+			header: id2,
+			flex: true,
+			render: (d) => ({ text: d.right, colour: colourFor(d.right) }),
+		},
+	]
 
 	return (
 		<Box flexDirection="column">
@@ -75,7 +99,7 @@ export function RunsDiff({ url, auth, runId1, runId2, onBack }: Props) {
 				</Box>
 				<Box>
 					<Box width={12} flexShrink={0}>
-						<Text bold>Status</Text>
+						<Text bold>{t.runsDiff.statusLabel}</Text>
 					</Box>
 					<Box width={24} flexShrink={0}>
 						<Text color={statusColour(r1.status)}>{r1.status}</Text>
@@ -86,7 +110,7 @@ export function RunsDiff({ url, auth, runId1, runId2, onBack }: Props) {
 				</Box>
 				<Box>
 					<Box width={12} flexShrink={0}>
-						<Text bold>Job</Text>
+						<Text bold>{t.runsDiff.jobLabel}</Text>
 					</Box>
 					<Box width={24} flexShrink={0}>
 						<Text wrap="truncate">{r1.jobName}</Text>
@@ -97,7 +121,7 @@ export function RunsDiff({ url, auth, runId1, runId2, onBack }: Props) {
 				</Box>
 				<Box>
 					<Box width={12} flexShrink={0}>
-						<Text bold>Duration</Text>
+						<Text bold>{t.runsDiff.durationLabel}</Text>
 					</Box>
 					<Box width={24} flexShrink={0}>
 						<Text>{durationStr(r1.startTime, r1.endTime)}</Text>
@@ -108,7 +132,7 @@ export function RunsDiff({ url, auth, runId1, runId2, onBack }: Props) {
 				</Box>
 				<Box>
 					<Box width={12} flexShrink={0}>
-						<Text bold>Started</Text>
+						<Text bold>{t.runsDiff.startedLabel}</Text>
 					</Box>
 					<Box width={24} flexShrink={0}>
 						<Text>{timeAgo(r1.startTime)}</Text>
@@ -119,7 +143,7 @@ export function RunsDiff({ url, auth, runId1, runId2, onBack }: Props) {
 				</Box>
 				<Box>
 					<Box width={12} flexShrink={0}>
-						<Text bold>Succeeded</Text>
+						<Text bold>{t.runsDiff.succeededLabel}</Text>
 					</Box>
 					<Box width={24} flexShrink={0}>
 						<Text>{r1.stats?.stepsSucceeded ?? 0}</Text>
@@ -130,7 +154,7 @@ export function RunsDiff({ url, auth, runId1, runId2, onBack }: Props) {
 				</Box>
 				<Box>
 					<Box width={12} flexShrink={0}>
-						<Text bold>Failed</Text>
+						<Text bold>{t.runsDiff.failedLabel}</Text>
 					</Box>
 					<Box width={24} flexShrink={0}>
 						<Text>{r1.stats?.stepsFailed ?? 0}</Text>
@@ -142,52 +166,16 @@ export function RunsDiff({ url, auth, runId1, runId2, onBack }: Props) {
 			</Box>
 
 			<Box marginTop={1} flexDirection="column">
-				<Text bold>{diffs.length} step(s) differ</Text>
+				<Text bold>{t.runsDiff.diffCount(diffs.length)}</Text>
 				{diffs.length === 0 ? (
-					<Text dimColor>(no differences)</Text>
+					<Text dimColor>{t.runsDiff.noDifferences}</Text>
 				) : (
-					<>
-						<Box marginTop={1}>
-							<Box width={2} />
-							<Box width={maxStep + 2} flexShrink={0}>
-								<Text bold>STEP</Text>
-							</Box>
-							<Box width={12} flexShrink={0}>
-								<Text bold>{id1}</Text>
-							</Box>
-							<Box flexGrow={1}>
-								<Text bold>{id2}</Text>
-							</Box>
-						</Box>
-						{slice.map((d, sliceIdx) => {
-							const i = start + sliceIdx
-							const selected = i === cursor
-							return (
-								<Box key={d.step}>
-									<Box width={2} flexShrink={0}>
-										<Text color="cyan">{selected ? '›' : ' '}</Text>
-									</Box>
-									<Box width={maxStep + 2} flexShrink={0}>
-										<Text color={selected ? 'cyan' : undefined} wrap="truncate">
-											{d.step}
-										</Text>
-									</Box>
-									<Box width={12} flexShrink={0}>
-										<Text color={colourFor(d.left)}>{d.left}</Text>
-									</Box>
-									<Box flexGrow={1}>
-										<Text color={colourFor(d.right)}>{d.right}</Text>
-									</Box>
-								</Box>
-							)
-						})}
-						{diffs.length > visible && (
-							<Text dimColor>
-								{cursor + 1}/{diffs.length} {start > 0 ? '↑' : ' '}
-								{end < diffs.length ? '↓' : ' '}
-							</Text>
-						)}
-					</>
+					<Table
+						columns={columns}
+						data={diffs}
+						cursor={cursor}
+						viewport={{ start, end, visible, total: diffs.length }}
+					/>
 				)}
 			</Box>
 		</Box>

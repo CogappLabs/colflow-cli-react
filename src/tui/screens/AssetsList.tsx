@@ -1,13 +1,10 @@
 import { Spinner, TextInput } from '@inkjs/ui'
 import { Box, Text, useInput } from 'ink'
 import { useEffect, useMemo, useState } from 'react'
-import {
-	type AssetListNode,
-	fetchAssets,
-	launchAssetRun,
-	makeClient,
-} from '../../client/index.ts'
+import { type AssetListNode, fetchAssets, launchAssetRun, makeClient } from '../../client/index.ts'
 import { timeAgo } from '../../format/index.ts'
+import { type Column, Table } from '../components/Table.tsx'
+import { t } from '../i18n/en.ts'
 import { useViewportWindow } from '../useViewport.ts'
 
 interface Props {
@@ -62,6 +59,19 @@ export function AssetsList({ url, auth, onSelect, onBack, onLaunched }: Props) {
 		}
 	}, [url, auth])
 
+	const filtered = useMemo(() => {
+		if (!assets) return []
+		if (!filter) return assets
+		const f = filter.toLowerCase()
+		return assets.filter((a) => {
+			const key = a.assetKey.path.join('/').toLowerCase()
+			const group = (a.groupName ?? '').toLowerCase()
+			return key.includes(f) || group.includes(f)
+		})
+	}, [assets, filter])
+
+	const { start, end, visible } = useViewportWindow(filtered.length, cursor, 9)
+
 	useInput((input, key) => {
 		if (filterInput) return
 		if (phase.kind === 'launching') return
@@ -76,9 +86,7 @@ export function AssetsList({ url, auth, onSelect, onBack, onLaunched }: Props) {
 						setPhase({ kind: 'idle' })
 						onLaunched(runId)
 					})
-					.catch((e: Error) =>
-						setPhase({ kind: 'error', message: String(e?.message ?? e) }),
-					)
+					.catch((e: Error) => setPhase({ kind: 'error', message: String(e?.message ?? e) }))
 				return
 			}
 			if (input === 'n' || key.escape) setPhase({ kind: 'idle' })
@@ -102,8 +110,8 @@ export function AssetsList({ url, auth, onSelect, onBack, onLaunched }: Props) {
 			return
 		}
 		if (filtered.length === 0) return
-		if (key.upArrow) setCursor((c) => Math.max(0, c - 1))
-		if (key.downArrow) setCursor((c) => Math.min(filtered.length - 1, c + 1))
+		if (key.upArrow) setCursor((c) => (c <= 0 ? filtered.length - 1 : c - 1))
+		if (key.downArrow) setCursor((c) => (c >= filtered.length - 1 ? 0 : c + 1))
 		if (key.pageUp) setCursor((c) => Math.max(0, c - visible))
 		if (key.pageDown) setCursor((c) => Math.min(filtered.length - 1, c + visible))
 		if (input === 'g') setCursor(0)
@@ -111,11 +119,11 @@ export function AssetsList({ url, auth, onSelect, onBack, onLaunched }: Props) {
 		if (input === ' ') {
 			const a = filtered[cursor]
 			if (!a) return
-			const key = a.assetKey.path.join('/')
+			const k = a.assetKey.path.join('/')
 			setSelected((s) => {
 				const next = new Set(s)
-				if (next.has(key)) next.delete(key)
-				else next.add(key)
+				if (next.has(k)) next.delete(k)
+				else next.add(k)
 				return next
 			})
 			return
@@ -129,13 +137,12 @@ export function AssetsList({ url, auth, onSelect, onBack, onLaunched }: Props) {
 			return
 		}
 		if (input === 'm') {
-			const names =
+			const lastSegment = (a: AssetListNode) => a.assetKey.path[a.assetKey.path.length - 1] ?? ''
+			const names: string[] =
 				selected.size > 0
-					? assets!.filter((a) => selected.has(a.assetKey.path.join('/'))).map(
-							(a) => a.assetKey.path[a.assetKey.path.length - 1]!,
-						)
+					? (assets ?? []).filter((a) => selected.has(a.assetKey.path.join('/'))).map(lastSegment)
 					: filtered[cursor]
-						? [filtered[cursor]!.assetKey.path[filtered[cursor]!.assetKey.path.length - 1]!]
+						? [lastSegment(filtered[cursor])]
 						: []
 			if (names.length === 0) return
 			setPhase({ kind: 'confirm', assets: names })
@@ -147,35 +154,72 @@ export function AssetsList({ url, auth, onSelect, onBack, onLaunched }: Props) {
 		}
 	})
 
-	const filtered = useMemo(() => {
-		if (!assets) return []
-		if (!filter) return assets
-		const f = filter.toLowerCase()
-		return assets.filter((a) => {
-			const key = a.assetKey.path.join('/').toLowerCase()
-			const group = (a.groupName ?? '').toLowerCase()
-			return key.includes(f) || group.includes(f)
-		})
-	}, [assets, filter])
-
-	const { start, end, visible } = useViewportWindow(filtered.length, cursor, 9)
-
-	if (error && !assets) return <Text color="red">Error: {error}</Text>
-	if (!assets) return <Spinner label="Loading assets..." />
-	if (assets.length === 0) return <Text dimColor>No assets found.</Text>
+	if (error && !assets)
+		return (
+			<Text color="red">
+				{t.common.errorPrefix} {error}
+			</Text>
+		)
+	if (!assets) return <Spinner label={t.common.loading} />
+	if (assets.length === 0) return <Text dimColor>{t.assets.empty}</Text>
 
 	const maxName = Math.max(5, ...filtered.map((a) => a.assetKey.path.join('/').length))
 	const nameWidth = Math.min(50, maxName)
 	const maxGroup = Math.max(5, ...filtered.map((a) => (a.groupName ?? '-').length))
 	const groupWidth = Math.min(20, maxGroup)
-	const slice = filtered.slice(start, end)
+
+	// Convert string-keyed selection to index-based Set for Table
+	const selectedIndices = new Set(
+		filtered
+			.map((a, i) => (selected.has(a.assetKey.path.join('/')) ? i : -1))
+			.filter((i) => i >= 0),
+	)
+
+	const columns: Column<AssetListNode>[] = [
+		{
+			header: t.assets.header.asset,
+			width: nameWidth,
+			render: (a) => ({ text: a.assetKey.path.join('/') }),
+		},
+		{
+			header: t.assets.header.group,
+			width: groupWidth,
+			render: (a) => ({ text: a.groupName ?? '-' }),
+		},
+		{
+			header: t.assets.header.lastMat,
+			width: 18,
+			render: (a) => ({
+				text: a.assetMaterializations[0]
+					? timeAgo(a.assetMaterializations[0].timestamp)
+					: t.assets.never,
+			}),
+		},
+		{
+			header: t.assets.header.stale,
+			width: 8,
+			render: (a) => {
+				const stale = a.staleStatus
+				const colour = stale === 'FRESH' ? 'green' : stale === 'STALE' ? 'yellow' : 'gray'
+				return { text: stale, colour }
+			},
+		},
+		{
+			header: t.assets.header.checks,
+			flex: true,
+			render: (a) => ({
+				text: a.hasAssetChecks ? '✓' : '',
+				colour: a.hasAssetChecks ? 'green' : undefined,
+			}),
+		},
+	]
 
 	return (
 		<Box flexDirection="column">
 			{phase.kind === 'confirm' && (
 				<Box marginBottom={1} flexDirection="column">
 					<Text color="yellow">
-						Materialise {phase.assets.length} asset(s)? {phase.assets.join(', ')}
+						{t.assets.materialiseConfirm(phase.assets.length, phase.assets.join(', '))}
 					</Text>
 					<Text>
 						<Text color="green">y</Text> confirm · <Text color="red">n</Text> cancel
@@ -184,20 +228,20 @@ export function AssetsList({ url, auth, onSelect, onBack, onLaunched }: Props) {
 			)}
 			{phase.kind === 'launching' && (
 				<Box marginBottom={1}>
-					<Spinner label="Launching..." />
+					<Spinner label={t.asset.launching} />
 				</Box>
 			)}
 			{phase.kind === 'error' && (
 				<Box marginBottom={1} flexDirection="column">
-					<Text color="red">Launch failed: {phase.message}</Text>
-					<Text dimColor>↵ dismiss</Text>
+					<Text color="red">{t.asset.launchFailed(phase.message)}</Text>
+					<Text dimColor>{t.common.dismissHint}</Text>
 				</Box>
 			)}
 			{selected.size > 0 && (
 				<Box marginBottom={1}>
 					<Text>
-						<Text bold>Selected:</Text> {selected.size} ·{' '}
-						<Text color="cyan">m</Text> materialise · <Text color="cyan">A</Text> clear
+						<Text bold>{t.assets.selectedLabel}</Text> {selected.size} · <Text color="cyan">m</Text>{' '}
+						materialise · <Text color="cyan">A</Text> clear
 					</Text>
 				</Box>
 			)}
@@ -208,11 +252,11 @@ export function AssetsList({ url, auth, onSelect, onBack, onLaunched }: Props) {
 							<Text>/</Text>
 							<TextInput
 								defaultValue={filter}
-								onSubmit={(v) => {
-									setFilter(v.trim())
-									setFilterInput(false)
+								onChange={(v) => {
+									setFilter(v)
 									setCursor(0)
 								}}
+								onSubmit={() => setFilterInput(false)}
 							/>
 						</>
 					) : (
@@ -221,65 +265,18 @@ export function AssetsList({ url, auth, onSelect, onBack, onLaunched }: Props) {
 							<Text color="cyan" bold>
 								{filter}
 							</Text>{' '}
-							({filtered.length}/{assets.length}) — c clear · / edit
+							({filtered.length}/{assets.length}) — {t.assets.filterEdit}
 						</Text>
 					)}
 				</Box>
 			)}
-			<Box>
-				<Box width={2} />
-				<Box width={3} />
-				<Box width={nameWidth + 2}>
-					<Text bold>ASSET</Text>
-				</Box>
-				<Box width={groupWidth + 2}>
-					<Text bold>GROUP</Text>
-				</Box>
-				<Box width={20}>
-					<Text bold>LAST MAT</Text>
-				</Box>
-				<Box flexGrow={1}>
-					<Text bold>STALE</Text>
-				</Box>
-			</Box>
-			{slice.map((a, sliceIdx) => {
-				const i = start + sliceIdx
-				const isCursor = i === cursor
-				const isSelected = selected.has(a.assetKey.path.join('/'))
-				const lastMat = a.assetMaterializations[0]
-				const stale = a.staleStatus
-				const staleColour = stale === 'FRESH' ? 'green' : stale === 'STALE' ? 'yellow' : 'gray'
-				return (
-					<Box key={a.assetKey.path.join('/')}>
-						<Box width={2}>
-							<Text color="cyan">{isCursor ? '›' : ' '}</Text>
-						</Box>
-						<Box width={3} flexShrink={0}>
-							<Text color="cyan">{isSelected ? '✓' : ' '}</Text>
-						</Box>
-						<Box width={nameWidth + 2} flexShrink={0}>
-							<Text color={isCursor ? 'cyan' : undefined} wrap="truncate">
-								{a.assetKey.path.join('/')}
-							</Text>
-						</Box>
-						<Box width={groupWidth + 2} flexShrink={0}>
-							<Text wrap="truncate">{a.groupName ?? '-'}</Text>
-						</Box>
-						<Box width={20} flexShrink={0}>
-							<Text>{lastMat ? timeAgo(lastMat.timestamp) : 'never'}</Text>
-						</Box>
-						<Box flexGrow={1}>
-							<Text color={staleColour}>{stale}</Text>
-						</Box>
-					</Box>
-				)
-			})}
-			{filtered.length > visible && (
-				<Text dimColor>
-					{cursor + 1}/{filtered.length} {start > 0 ? '↑' : ' '}
-					{end < filtered.length ? '↓' : ' '}
-				</Text>
-			)}
+			<Table
+				columns={columns}
+				data={filtered}
+				cursor={cursor}
+				selected={selectedIndices}
+				viewport={{ start, end, visible, total: filtered.length }}
+			/>
 		</Box>
 	)
 }

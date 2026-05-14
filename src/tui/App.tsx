@@ -1,33 +1,28 @@
 import { FullScreenBox } from 'fullscreen-ink'
 import { Box, Text, useApp, useInput } from 'ink'
 import { useEffect, useState } from 'react'
-import { t } from './i18n/en.ts'
-import type {
-	AssetCheckEval,
-	AssetListNode,
-	Job,
-	MetadataEntry,
-	Run,
-	RunStep,
-} from '../client/index.ts'
+import type { AssetCheckEval, Job, MetadataEntry, Run, RunStep } from '../client/index.ts'
 import { fetchRun, makeClient } from '../client/index.ts'
+import { t } from './i18n/en.ts'
 import { AssetSample } from './screens/AssetSample.tsx'
 import { AssetSampleById } from './screens/AssetSampleById.tsx'
 import { AssetSchema } from './screens/AssetSchema.tsx'
 import { AssetsList } from './screens/AssetsList.tsx'
 import { AssetView } from './screens/AssetView.tsx'
+import { CheckDetail } from './screens/CheckDetail.tsx'
 import { Details } from './screens/Details.tsx'
 import { JobDetail } from './screens/JobDetail.tsx'
 import { JobsList } from './screens/JobsList.tsx'
-import { CheckDetail } from './screens/CheckDetail.tsx'
 import { Menu, type MenuChoice } from './screens/Menu.tsx'
 import { MetadataDetail } from './screens/MetadataDetail.tsx'
+import { ESCheck } from './screens/ESCheck.tsx'
 import { Reload } from './screens/Reload.tsx'
 import { RunDetail } from './screens/RunDetail.tsx'
 import { RunsDiff } from './screens/RunsDiff.tsx'
 import { RunsList } from './screens/RunsList.tsx'
 import { SensorsList } from './screens/SensorsList.tsx'
 import { Tail } from './screens/Tail.tsx'
+import { colour } from './theme.ts'
 
 interface Props {
 	url: string
@@ -58,6 +53,7 @@ type View =
 	| { kind: 'jobs' }
 	| { kind: 'sensors' }
 	| { kind: 'reload' }
+	| { kind: 'es-check' }
 	| { kind: 'runs-diff'; runId1: string; runId2: string }
 	| { kind: 'metadata'; entry: MetadataEntry; back: View }
 	| { kind: 'check'; check: AssetCheckEval; back: View }
@@ -91,6 +87,8 @@ function viewLabel(v: View): string {
 			return 'Sensors'
 		case 'reload':
 			return 'Reload Dagster'
+		case 'es-check':
+			return 'Elasticsearch'
 		case 'runs-diff':
 			return `Diff ${v.runId1.slice(0, 8)} ↔ ${v.runId2.slice(0, 8)}`
 		case 'metadata':
@@ -132,6 +130,8 @@ function viewKeymap(v: View): string {
 			return t.footer.sensors
 		case 'reload':
 			return t.footer.reload
+		case 'es-check':
+			return '↑/↓ pgUp/pgDn g/G · i/a tabs · / search · r refresh · esc/← back'
 		case 'runs-diff':
 			return t.footer.runsDiff
 		case 'metadata':
@@ -155,6 +155,13 @@ export function App({ url, auth }: Props) {
 		if (key.ctrl && input === 'c') exit()
 	})
 
+	// Eagerly resolve Dagster workspace on TUI start. Side-effect: loads .env
+	// from the discovered project root (covers running TUI from outside the
+	// project dir, so es-check and other env-dependent menu items light up).
+	useEffect(() => {
+		void import('../project/workspace.ts').then((m) => m.resolveWorkspace(url, auth))
+	}, [url, auth])
+
 	const onMenu = (choice: MenuChoice) => {
 		if (choice === 'quit') {
 			exit()
@@ -165,6 +172,7 @@ export function App({ url, auth }: Props) {
 		if (choice === 'jobs') setView({ kind: 'jobs' })
 		if (choice === 'sensors') setView({ kind: 'sensors' })
 		if (choice === 'reload') setView({ kind: 'reload' })
+		if (choice === 'es-check') setView({ kind: 'es-check' })
 	}
 
 	let body: React.ReactNode
@@ -232,16 +240,13 @@ export function App({ url, auth }: Props) {
 			)
 			break
 		case 'sensors':
-			body = (
-				<SensorsList
-					url={url}
-					auth={auth}
-					onBack={() => setView({ kind: 'menu' })}
-				/>
-			)
+			body = <SensorsList url={url} auth={auth} onBack={() => setView({ kind: 'menu' })} />
 			break
 		case 'reload':
 			body = <Reload url={url} auth={auth} onBack={() => setView({ kind: 'menu' })} />
+			break
+		case 'es-check':
+			body = <ESCheck onBack={() => setView({ kind: 'menu' })} />
 			break
 		case 'jobs':
 			body = (
@@ -338,9 +343,7 @@ export function App({ url, auth }: Props) {
 					auth={auth}
 					onSelect={(run) => setView({ kind: 'run', run })}
 					onQuit={() => setView({ kind: 'menu' })}
-					onDiff={(runId1, runId2) =>
-						setView({ kind: 'runs-diff', runId1, runId2 })
-					}
+					onDiff={(runId1, runId2) => setView({ kind: 'runs-diff', runId1, runId2 })}
 				/>
 			)
 			break
@@ -377,14 +380,14 @@ export function App({ url, auth }: Props) {
 		<FullScreenBox flexDirection="column">
 			<Box
 				borderStyle="single"
-				borderColor="cyan"
+				borderColor={colour.primary}
 				borderTop={false}
 				borderLeft={false}
 				borderRight={false}
 				paddingX={1}
 				justifyContent="space-between"
 			>
-				<Text bold color="cyan">
+				<Text bold color={colour.primary}>
 					{t.app.title}
 				</Text>
 				<Text dimColor>{viewLabel(view)}</Text>
@@ -444,8 +447,8 @@ function LaunchedRunBridge({
 			</Box>
 		)
 	}
+	void onBack // suppress unused; the bridge auto-navigates and onBack is held for future error UI.
 	return <Text dimColor>Opening {runId}...</Text>
-	void onBack
 }
 
 interface RunDetailWrapperProps {

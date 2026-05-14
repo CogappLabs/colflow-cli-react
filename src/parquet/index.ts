@@ -75,9 +75,9 @@ export function collapseLeafPath(path: string[]): string {
 	while (i < path.length) {
 		const seg = path[i]!
 		if (i + 1 < path.length) {
-			const next = path[i + 1]!.toLowerCase()
+			const next = path[i + 1]?.toLowerCase()
 			if ((next === 'list' || next === 'array') && i + 2 < path.length) {
-				const elem = path[i + 2]!.toLowerCase()
+				const elem = path[i + 2]?.toLowerCase()
 				if (elem === 'element' || elem === 'item') {
 					out.push(`${seg}[]`)
 					i += 3
