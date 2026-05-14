@@ -1,10 +1,10 @@
 import { statSync } from 'node:fs'
 import {
 	asyncBufferFromFile,
+	type FileMetaData,
 	parquetMetadataAsync,
 	parquetReadObjects,
 	parquetSchema,
-	type FileMetaData,
 } from 'hyparquet'
 import { compressors } from 'hyparquet-compressors'
 

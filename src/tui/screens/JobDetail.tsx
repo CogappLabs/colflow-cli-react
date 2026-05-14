@@ -190,10 +190,7 @@ export function JobDetail({ url, auth, job, onBack, onLaunched, onSelectAsset }:
 										<Text dimColor>L{line.depth}</Text>
 									</Box>
 									<Box flexGrow={1}>
-										<Text
-											color={selected ? 'cyan' : undefined}
-											wrap="truncate"
-										>
+										<Text color={selected ? 'cyan' : undefined} wrap="truncate">
 											{indent}
 											{line.key}
 										</Text>

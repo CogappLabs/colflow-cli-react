@@ -112,8 +112,7 @@ export function AssetSample({
 					Row {cursor + 1} of {rows.length}
 					{filters.length > 0 && (
 						<Text dimColor>
-							{'   '}filter:{' '}
-							{filters.map((f) => `${f.path.join('.')}=${f.value}`).join(', ')}
+							{'   '}filter: {filters.map((f) => `${f.path.join('.')}=${f.value}`).join(', ')}
 						</Text>
 					)}
 				</Text>

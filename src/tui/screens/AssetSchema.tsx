@@ -85,8 +85,7 @@ export function AssetSchema({ parquetPath, assetName, onBack }: Props) {
 				{slice.map((c, sliceIdx) => {
 					const i = start + sliceIdx
 					const selected = i === cursor
-					const colour =
-						c.populatedPct === 100 ? 'green' : c.populatedPct >= 50 ? 'yellow' : 'red'
+					const colour = c.populatedPct === 100 ? 'green' : c.populatedPct >= 50 ? 'yellow' : 'red'
 					return (
 						<Box key={c.name}>
 							<Box width={2} flexShrink={0}>

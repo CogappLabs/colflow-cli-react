@@ -118,9 +118,7 @@ export async function runNewAsset({
 		process.exit(2)
 	}
 	if (!NAME_RE.test(name)) {
-		process.stderr.write(
-			`name must be snake_case (lowercase, digits, underscores), got: ${name}\n`,
-		)
+		process.stderr.write(`name must be snake_case (lowercase, digits, underscores), got: ${name}\n`)
 		process.exit(1)
 	}
 

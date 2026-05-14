@@ -6,21 +6,21 @@ import { runCancel } from './commands/cancel.ts'
 import { runConfig } from './commands/config.ts'
 import { runDevServer } from './commands/devserver.ts'
 import { runDiff } from './commands/diff.ts'
-import { runGraph } from './commands/graph.ts'
 import { runErrors } from './commands/errors.ts'
 import { runEsCheck } from './commands/escheck.ts'
+import { runGraph } from './commands/graph.ts'
 import { runInspect } from './commands/inspect.ts'
+import { runLogs } from './commands/logs.ts'
 import { runMaterialise } from './commands/materialise.ts'
+import { runNewAsset } from './commands/newasset.ts'
 import { runRecheck } from './commands/recheck.ts'
 import { runReload } from './commands/reload.ts'
-import { runSensors } from './commands/sensors.ts'
-import { runStale } from './commands/stale.ts'
-import { runNewAsset } from './commands/newasset.ts'
-import { runLogs } from './commands/logs.ts'
 import { runRun } from './commands/run.ts'
 import { runRuns } from './commands/runs.ts'
-import { runStatus } from './commands/status.ts'
 import { runSample } from './commands/sample.ts'
+import { runSensors } from './commands/sensors.ts'
+import { runStale } from './commands/stale.ts'
+import { runStatus } from './commands/status.ts'
 import { runTail } from './commands/tail.ts'
 import { loadDotEnv } from './project/index.ts'
 import { App } from './tui/App.tsx'
@@ -116,7 +116,10 @@ function needArg(name: string): string {
 
 async function main() {
 	if (!cmd) {
-		const { start, waitUntilExit } = withFullScreen(<App url={url} auth={auth} />)
+		const { start, waitUntilExit } = withFullScreen(<App url={url} auth={auth} />, {
+			patchConsole: false,
+			exitOnCtrlC: true,
+		})
 		await start()
 		await waitUntilExit()
 		return

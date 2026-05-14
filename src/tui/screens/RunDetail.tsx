@@ -1,7 +1,13 @@
 import { Spinner } from '@inkjs/ui'
 import { Box, Text, useInput } from 'ink'
 import { useEffect, useRef, useState } from 'react'
-import { fetchRunSteps, makeClient, type Run, type RunStep } from '../../client/index.ts'
+import {
+	fetchRunSteps,
+	makeClient,
+	type Run,
+	type RunStep,
+	terminateRun,
+} from '../../client/index.ts'
 import { formatTimestamp, statusColour, tsToSeconds } from '../../format/index.ts'
 import { useViewportWindow } from '../useViewport.ts'
 
@@ -45,10 +51,20 @@ function renderAssetKey(step: RunStep): string {
 	return step.stepKey
 }
 
+type CancelPhase =
+	| { kind: 'idle' }
+	| { kind: 'confirm' }
+	| { kind: 'cancelling' }
+	| { kind: 'cancelled'; status: string }
+	| { kind: 'error'; message: string }
+
+const NON_TERMINAL = new Set(['STARTED', 'STARTING', 'QUEUED'])
+
 export function RunDetail({ url, auth, run, onBack, onSelectStep }: Props) {
 	const [steps, setSteps] = useState<RunStep[] | null>(null)
 	const [error, setError] = useState<string | null>(null)
 	const [cursor, setCursor] = useState(0)
+	const [cancelPhase, setCancelPhase] = useState<CancelPhase>({ kind: 'idle' })
 	const cursorPositioned = useRef(false)
 
 	useEffect(() => {
@@ -86,8 +102,31 @@ export function RunDetail({ url, auth, run, onBack, onSelectStep }: Props) {
 	}, [url, auth, run.runId, run.status])
 
 	useInput((input, key) => {
+		if (cancelPhase.kind === 'cancelling') return
+		if (cancelPhase.kind === 'confirm') {
+			if (input === 'y' || key.return) {
+				setCancelPhase({ kind: 'cancelling' })
+				const client = makeClient({ url, auth })
+				terminateRun(client, run.runId)
+					.then((status) => setCancelPhase({ kind: 'cancelled', status }))
+					.catch((e: Error) =>
+						setCancelPhase({ kind: 'error', message: String(e?.message ?? e) }),
+					)
+				return
+			}
+			if (input === 'n' || key.escape) setCancelPhase({ kind: 'idle' })
+			return
+		}
+		if ((cancelPhase.kind === 'cancelled' || cancelPhase.kind === 'error') && key.return) {
+			setCancelPhase({ kind: 'idle' })
+			return
+		}
 		if (input === 'q' || key.escape || key.leftArrow) {
 			onBack()
+			return
+		}
+		if (input === 'x' && NON_TERMINAL.has(run.status)) {
+			setCancelPhase({ kind: 'confirm' })
 			return
 		}
 		if (!steps || steps.length === 0) return
@@ -103,9 +142,7 @@ export function RunDetail({ url, auth, run, onBack, onSelectStep }: Props) {
 		}
 	})
 
-	const maxAssetLen = steps
-		? Math.max(5, ...steps.map((s) => renderAssetKey(s).length))
-		: 5
+	const maxAssetLen = steps ? Math.max(5, ...steps.map((s) => renderAssetKey(s).length)) : 5
 	const assetWidth = Math.min(60, maxAssetLen)
 	// Reserve: shell(4) + run header(2) + section title(1) + table header(1) + scroll hint(1) + margins(3)
 	const { start, end, visible } = useViewportWindow(steps?.length ?? 0, cursor, 12)
@@ -136,12 +173,37 @@ export function RunDetail({ url, auth, run, onBack, onSelectStep }: Props) {
 		<Box flexDirection="column">
 			<Box flexDirection="column">
 				<Text>
-					<Text bold>Status:</Text>{' '}
-					<Text color={statusColour(run.status)}>{run.status}</Text>
+					<Text bold>Status:</Text> <Text color={statusColour(run.status)}>{run.status}</Text>
 					{'   '}
 					{formatTimestamp(run.startTime)} → {formatTimestamp(run.endTime)}
 				</Text>
 			</Box>
+
+			{cancelPhase.kind === 'confirm' && (
+				<Box marginTop={1} flexDirection="column">
+					<Text color="yellow">Cancel run {run.runId.slice(0, 8)}?</Text>
+					<Text>
+						<Text color="green">y</Text> confirm · <Text color="red">n</Text> cancel
+					</Text>
+				</Box>
+			)}
+			{cancelPhase.kind === 'cancelling' && (
+				<Box marginTop={1}>
+					<Text color="cyan">Cancelling...</Text>
+				</Box>
+			)}
+			{cancelPhase.kind === 'cancelled' && (
+				<Box marginTop={1} flexDirection="column">
+					<Text color="yellow">Cancelled — status: {cancelPhase.status}</Text>
+					<Text dimColor>↵ dismiss</Text>
+				</Box>
+			)}
+			{cancelPhase.kind === 'error' && (
+				<Box marginTop={1} flexDirection="column">
+					<Text color="red">Cancel failed: {cancelPhase.message}</Text>
+					<Text dimColor>↵ dismiss</Text>
+				</Box>
+			)}
 
 			<Box marginTop={1} flexDirection="column">
 				<Text bold>Assets / steps</Text>
@@ -200,7 +262,6 @@ export function RunDetail({ url, auth, run, onBack, onSelectStep }: Props) {
 					</Box>
 				)}
 			</Box>
-
 		</Box>
 	)
 }

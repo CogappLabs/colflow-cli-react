@@ -1,5 +1,6 @@
-import { fetchRun, makeClient, type RunEvent } from '../client/index.ts'
-import { timeAgo, tsToSeconds } from '../format/index.ts'
+import { fetchRun, makeClient } from '../client/index.ts'
+import { computeDiff, durationStr, extractSteps, statusOf } from '../diff/index.ts'
+import { timeAgo } from '../format/index.ts'
 
 interface Opts {
 	url: string
@@ -9,48 +10,13 @@ interface Opts {
 	run2: string
 }
 
-interface StepSummary {
-	stepKey: string
-	hasError: boolean
-}
-
-function extractSteps(events: RunEvent[]): Map<string, StepSummary> {
-	const out = new Map<string, StepSummary>()
-	for (const e of events) {
-		if (!e.stepKey) continue
-		const cur = out.get(e.stepKey)
-		if (!cur) out.set(e.stepKey, { stepKey: e.stepKey, hasError: e.level === 'ERROR' })
-		else if (e.level === 'ERROR') cur.hasError = true
-	}
-	return out
-}
-
-function statusOf(s: StepSummary | undefined): string {
-	if (!s) return 'MISSING'
-	return s.hasError ? 'FAILED' : 'OK'
-}
-
-function durationStr(start: number | string | null, end: number | string | null): string {
-	const a = tsToSeconds(start)
-	const b = tsToSeconds(end)
-	if (a == null || b == null) return 'unknown'
-	const s = Math.max(0, b - a)
-	if (s < 60) return `${s}s`
-	return `${Math.floor(s / 60)}m ${s % 60}s`
-}
-
 export async function runDiff({ url, auth, json, run1, run2 }: Opts): Promise<void> {
 	const client = makeClient({ url, auth })
 	const [r1, r2] = await Promise.all([fetchRun(client, run1), fetchRun(client, run2)])
-	const s1 = extractSteps(r1.events)
-	const s2 = extractSteps(r2.events)
-	const allKeys = new Set([...s1.keys(), ...s2.keys()])
-	const diffs: { step: string; run1: string; run2: string }[] = []
-	for (const k of allKeys) {
-		const a = statusOf(s1.get(k))
-		const b = statusOf(s2.get(k))
-		if (a !== b) diffs.push({ step: k, run1: a, run2: b })
-	}
+	const diffRows = computeDiff(r1, r2)
+	const diffs = diffRows.map((d) => ({ step: d.step, run1: d.left, run2: d.right }))
+	void extractSteps
+	void statusOf
 	if (json) {
 		process.stdout.write(
 			`${JSON.stringify(

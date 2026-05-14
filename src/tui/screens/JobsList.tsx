@@ -1,7 +1,7 @@
 import { Spinner } from '@inkjs/ui'
 import { Box, Text, useInput } from 'ink'
 import { useEffect, useState } from 'react'
-import { fetchJobs, makeClient, type Job } from '../../client/index.ts'
+import { fetchJobs, type Job, makeClient } from '../../client/index.ts'
 import { useViewportWindow } from '../useViewport.ts'
 
 interface Props {
@@ -93,9 +93,7 @@ export function JobsList({ url, auth, onSelect, onBack }: Props) {
 							</Text>
 						</Box>
 						<Box flexGrow={1}>
-							<Text wrap="truncate">
-								{(j.description ?? '').replace(/\s+/g, ' ').trim()}
-							</Text>
+							<Text wrap="truncate">{(j.description ?? '').replace(/\s+/g, ' ').trim()}</Text>
 						</Box>
 					</Box>
 				)

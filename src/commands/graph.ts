@@ -1,4 +1,4 @@
-import { fetchAssetGraph, makeClient, type AssetGraphNode } from '../client/index.ts'
+import { type AssetGraphNode, fetchAssetGraph, makeClient } from '../client/index.ts'
 
 interface Opts {
 	url: string

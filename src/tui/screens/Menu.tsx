@@ -1,7 +1,14 @@
 import { Box, Text, useInput } from 'ink'
 import { useState } from 'react'
 
-export type MenuChoice = 'runs' | 'assets' | 'jobs' | 'sensors' | 'es-check' | 'quit'
+export type MenuChoice =
+	| 'runs'
+	| 'assets'
+	| 'jobs'
+	| 'sensors'
+	| 'es-check'
+	| 'reload'
+	| 'quit'
 
 interface MenuItem {
 	choice: MenuChoice
@@ -12,10 +19,26 @@ interface MenuItem {
 
 const ITEMS: MenuItem[] = [
 	{ choice: 'runs', label: 'Runs', hint: 'browse recent runs + drill into assets', enabled: true },
-	{ choice: 'assets', label: 'Assets', hint: 'browse all assets, materialisation + stale status', enabled: true },
+	{
+		choice: 'assets',
+		label: 'Assets',
+		hint: 'browse all assets, materialisation + stale status',
+		enabled: true,
+	},
 	{ choice: 'jobs', label: 'Jobs', hint: 'list all jobs in the repository', enabled: true },
-	{ choice: 'sensors', label: 'Sensors', hint: '(TODO)', enabled: false },
+	{
+		choice: 'sensors',
+		label: 'Sensors',
+		hint: 'list sensors with status + recent ticks',
+		enabled: true,
+	},
 	{ choice: 'es-check', label: 'Elasticsearch', hint: '(TODO)', enabled: false },
+	{
+		choice: 'reload',
+		label: 'Reload Dagster',
+		hint: 'reload the code location after editing python',
+		enabled: true,
+	},
 	{ choice: 'quit', label: 'Quit', hint: '', enabled: true },
 ]
 
@@ -70,11 +93,7 @@ export function Menu({ onSelect }: Props) {
 								<Text color="cyan">{selected ? '›' : ' '}</Text>
 							</Box>
 							<Box width={maxLabel + 2}>
-								<Text
-									color={selected ? 'cyan' : undefined}
-									dimColor={dim}
-									bold={selected}
-								>
+								<Text color={selected ? 'cyan' : undefined} dimColor={dim} bold={selected}>
 									{item.label}
 								</Text>
 							</Box>

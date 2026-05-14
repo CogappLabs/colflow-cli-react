@@ -30,9 +30,7 @@ export async function runStale({ url, auth, json }: Opts): Promise<void> {
 			`  ${a.staleStatus.padEnd(8)}  ${name.padEnd(maxName)}  ${group}  last: ${lastMat}\n`,
 		)
 		for (const c of a.staleCauses) {
-			process.stdout.write(
-				`         ${c.category}: ${c.reason} (${c.key.path.join('/')})\n`,
-			)
+			process.stdout.write(`         ${c.category}: ${c.reason} (${c.key.path.join('/')})\n`)
 		}
 	}
 }

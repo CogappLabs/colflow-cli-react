@@ -1,16 +1,17 @@
+import { existsSync } from 'node:fs'
 import { Spinner } from '@inkjs/ui'
 import { Box, Text, useInput } from 'ink'
-import { existsSync } from 'node:fs'
 import { useEffect, useState } from 'react'
 import {
-	fetchAssetDetail,
-	fetchRunAssetDetail,
-	launchAssetRun,
-	makeClient,
 	type AssetCheckEval,
 	type AssetDetailNode,
 	type AssetFailure,
+	fetchAssetDetail,
+	fetchRunAssetDetail,
+	launchAssetCheckRun,
+	launchAssetRun,
 	type MetadataEntry,
+	makeClient,
 	type RunAssetDetail,
 } from '../../client/index.ts'
 import { formatTimestamp, statusColour, timeAgo } from '../../format/index.ts'
@@ -39,6 +40,8 @@ interface Props {
 	onSampleById: (parquetPath: string, assetName: string) => void
 	onLaunched: (runId: string) => void
 	onDetails: (title: string, body: string) => void
+	onMetadata: (entry: MetadataEntry) => void
+	onCheck: (check: AssetCheckEval) => void
 }
 
 type LaunchPhase =
@@ -131,9 +134,7 @@ function rawMetaValue(e: MetadataEntry): string {
 			const header = cols.map((c, i) => c.name.padEnd(widths[i]!)).join('  ')
 			const out = [header]
 			for (const r of records) {
-				out.push(
-					cols.map((c, i) => String(r[c.name] ?? '').padEnd(widths[i]!)).join('  '),
-				)
+				out.push(cols.map((c, i) => String(r[c.name] ?? '').padEnd(widths[i]!)).join('  '))
 			}
 			return out.join('\n')
 		}
@@ -154,10 +155,7 @@ function failureBody(f: AssetFailure): string {
 }
 
 function checkBody(c: AssetCheckEval): string {
-	const out = [
-		`${c.success ? 'PASS' : 'FAIL'}  ${c.checkName}  (severity: ${c.severity})`,
-		'',
-	]
+	const out = [`${c.success ? 'PASS' : 'FAIL'}  ${c.checkName}  (severity: ${c.severity})`, '']
 	for (const e of c.metadataEntries) {
 		out.push(`${e.label}:`)
 		out.push(rawMetaValue(e))
@@ -175,6 +173,10 @@ interface Row {
 	body?: string
 	title?: string
 	action?: 'materialise' | 'schema' | 'sample' | 'sample-by-id'
+	checkName?: string
+	checkFailed?: boolean
+	check?: AssetCheckEval
+	meta?: MetadataEntry
 }
 
 export function AssetView({
@@ -188,6 +190,8 @@ export function AssetView({
 	onSampleById,
 	onLaunched,
 	onDetails,
+	onMetadata,
+	onCheck,
 }: Props) {
 	const [detail, setDetail] = useState<AssetDetailNode | null | 'missing'>(null)
 	const [runDetail, setRunDetail] = useState<RunAssetDetail | null>(null)
@@ -297,13 +301,20 @@ export function AssetView({
 			openable: c.metadataEntries.length > 0,
 			title: `Check: ${c.checkName}`,
 			body: checkBody(c),
+			checkName: c.checkName,
+			checkFailed: !c.success,
+			check: c,
 		})
 	}
 
-	// Materialisation metadata (latest)
-	const matEntries = runDetail?.materialisation?.metadataEntries
-		?? data?.assetMaterializations[0]?.metadataEntries
-		?? []
+	// Materialisation metadata (latest). Selectable entries (large bodies users
+	// can drill into) go in the main rows list; the rest render as a static
+	// footer block so non-interactive data doesn't compete with arrow keys.
+	const matEntries =
+		runDetail?.materialisation?.metadataEntries ??
+		data?.assetMaterializations[0]?.metadataEntries ??
+		[]
+	const staticMeta: { label: string; value: string }[] = []
 	for (const e of matEntries) {
 		const long =
 			(e.__typename === 'TextMetadataEntry' && (e.text?.length ?? 0) > 80) ||
@@ -311,13 +322,18 @@ export function AssetView({
 			(e.__typename === 'MarkdownMetadataEntry' && (e.mdStr?.length ?? 0) > 80) ||
 			(e.__typename === 'TableSchemaMetadataEntry' && (e.schema?.columns.length ?? 0) > 0) ||
 			(e.__typename === 'TableMetadataEntry' && (e.table?.records.length ?? 0) > 0)
+		if (!long) {
+			staticMeta.push({ label: e.label, value: renderMetaValue(e) })
+			continue
+		}
 		rows.push({
 			kind: 'meta',
 			label: e.label,
 			value: renderMetaValue(e),
-			openable: long,
+			openable: true,
 			title: e.label,
 			body: rawMetaValue(e),
+			meta: e,
 		})
 	}
 
@@ -376,6 +392,21 @@ export function AssetView({
 		if (input === 's' && parquetExists) triggerAction('schema')
 		if (input === 'd' && parquetExists) triggerAction('sample')
 		if (input === 'i' && parquetExists) triggerAction('sample-by-id')
+		if (input === 'r' && cursor !== null) {
+			const r = rows[cursor]
+			if (r?.kind === 'check' && r.checkFailed && r.checkName && data?.assetKey) {
+				const checkName = r.checkName
+				setPhase({ kind: 'launching' })
+				const client = makeClient({ url, auth })
+				launchAssetCheckRun(client, [
+					{ assetPath: data.assetKey.path, checkName },
+				])
+					.then((runId) => onLaunched(runId))
+					.catch((e: Error) => {
+						setPhase({ kind: 'error', message: String(e?.message ?? e) })
+					})
+			}
+		}
 		// Cursor nav (openable rows only)
 		if (openableIndices.length === 0) return
 		if (key.upArrow) {
@@ -395,7 +426,17 @@ export function AssetView({
 			if (!r) return
 			if (r.action) {
 				triggerAction(r.action)
-			} else if (r.body && r.title) {
+				return
+			}
+			if (r.kind === 'check' && r.check) {
+				onCheck(r.check)
+				return
+			}
+			if (r.kind === 'meta' && r.meta) {
+				onMetadata(r.meta)
+				return
+			}
+			if (r.body && r.title) {
 				onDetails(r.title, r.body)
 			}
 		}
@@ -407,11 +448,7 @@ export function AssetView({
 
 	const lastMat = detail.assetMaterializations[0]
 	const staleColour =
-		detail.staleStatus === 'FRESH'
-			? 'green'
-			: detail.staleStatus === 'STALE'
-				? 'yellow'
-				: 'gray'
+		detail.staleStatus === 'FRESH' ? 'green' : detail.staleStatus === 'STALE' ? 'yellow' : 'gray'
 	const maxLabel = Math.max(8, ...rows.map((r) => r.label.length))
 
 	return (
@@ -419,15 +456,12 @@ export function AssetView({
 			<Text bold color="cyan">
 				{detail.assetKey.path.join('/')}
 			</Text>
-			{detail.description && (
-				<Text wrap="truncate">{detail.description}</Text>
-			)}
+			{detail.description && <Text wrap="truncate">{detail.description}</Text>}
 			<Box flexDirection="column">
 				<Text>
 					<Text bold>Group:</Text> {detail.groupName ?? '-'}
 					{'   '}
-					<Text bold>Stale:</Text>{' '}
-					<Text color={staleColour}>{detail.staleStatus}</Text>
+					<Text bold>Stale:</Text> <Text color={staleColour}>{detail.staleStatus}</Text>
 					{detail.kinds.length > 0 && (
 						<>
 							{'   '}
@@ -442,17 +476,15 @@ export function AssetView({
 				)}
 				{lastMat && (
 					<Text>
-						<Text bold>Last mat:</Text> {formatTimestamp(lastMat.timestamp)}{' '}
-						({timeAgo(lastMat.timestamp)})
+						<Text bold>Last mat:</Text> {formatTimestamp(lastMat.timestamp)} (
+						{timeAgo(lastMat.timestamp)})
 					</Text>
 				)}
 				{runContext && (
 					<Text>
 						<Text bold>In run:</Text> {runContext.runId.slice(0, 8)}{' '}
 						{runContext.runStatus && (
-							<Text color={statusColour(runContext.runStatus)}>
-								{runContext.runStatus}
-							</Text>
+							<Text color={statusColour(runContext.runStatus)}>{runContext.runStatus}</Text>
 						)}
 					</Text>
 				)}
@@ -513,10 +545,7 @@ export function AssetView({
 								</Text>
 							</Box>
 							<Box flexGrow={1}>
-								<Text
-									color={selected ? 'cyan' : undefined}
-									wrap="truncate"
-								>
+								<Text color={selected ? 'cyan' : undefined} wrap="truncate">
 									{r.value}
 								</Text>
 							</Box>
@@ -532,6 +561,24 @@ export function AssetView({
 					</Box>
 				)}
 			</Box>
+
+			{staticMeta.length > 0 && (
+				<Box marginTop={2} flexDirection="column">
+					{(() => {
+						const maxStaticLabel = Math.max(...staticMeta.map((m) => m.label.length))
+						return staticMeta.map((m, i) => (
+							<Box key={`${i}-${m.label}`}>
+								<Box width={maxStaticLabel + 2} flexShrink={0}>
+									<Text bold>{m.label}</Text>
+								</Box>
+								<Box flexGrow={1}>
+									<Text wrap="truncate">{m.value}</Text>
+								</Box>
+							</Box>
+						))
+					})()}
+				</Box>
+			)}
 		</Box>
 	)
 }

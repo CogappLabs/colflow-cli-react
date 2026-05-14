@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { detect, cwd } from '../project/index.ts'
+import { cwd, detect } from '../project/index.ts'
 
 interface Opts {
 	debug: boolean

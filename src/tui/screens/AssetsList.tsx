@@ -1,7 +1,12 @@
 import { Spinner, TextInput } from '@inkjs/ui'
 import { Box, Text, useInput } from 'ink'
 import { useEffect, useMemo, useState } from 'react'
-import { fetchAssets, makeClient, type AssetListNode } from '../../client/index.ts'
+import {
+	type AssetListNode,
+	fetchAssets,
+	launchAssetRun,
+	makeClient,
+} from '../../client/index.ts'
 import { timeAgo } from '../../format/index.ts'
 import { useViewportWindow } from '../useViewport.ts'
 
@@ -10,14 +15,23 @@ interface Props {
 	auth?: string
 	onSelect: (asset: AssetListNode) => void
 	onBack: () => void
+	onLaunched: (runId: string) => void
 }
 
-export function AssetsList({ url, auth, onSelect, onBack }: Props) {
+type LaunchPhase =
+	| { kind: 'idle' }
+	| { kind: 'confirm'; assets: string[] }
+	| { kind: 'launching' }
+	| { kind: 'error'; message: string }
+
+export function AssetsList({ url, auth, onSelect, onBack, onLaunched }: Props) {
 	const [assets, setAssets] = useState<AssetListNode[] | null>(null)
 	const [error, setError] = useState<string | null>(null)
 	const [cursor, setCursor] = useState(0)
 	const [filter, setFilter] = useState('')
 	const [filterInput, setFilterInput] = useState(false)
+	const [selected, setSelected] = useState<Set<string>>(new Set())
+	const [phase, setPhase] = useState<LaunchPhase>({ kind: 'idle' })
 
 	useEffect(() => {
 		const client = makeClient({ url, auth })
@@ -50,6 +64,30 @@ export function AssetsList({ url, auth, onSelect, onBack }: Props) {
 
 	useInput((input, key) => {
 		if (filterInput) return
+		if (phase.kind === 'launching') return
+		if (phase.kind === 'confirm') {
+			if (input === 'y' || key.return) {
+				const names = phase.assets
+				setPhase({ kind: 'launching' })
+				const client = makeClient({ url, auth })
+				launchAssetRun(client, names)
+					.then((runId) => {
+						setSelected(new Set())
+						setPhase({ kind: 'idle' })
+						onLaunched(runId)
+					})
+					.catch((e: Error) =>
+						setPhase({ kind: 'error', message: String(e?.message ?? e) }),
+					)
+				return
+			}
+			if (input === 'n' || key.escape) setPhase({ kind: 'idle' })
+			return
+		}
+		if (phase.kind === 'error' && key.return) {
+			setPhase({ kind: 'idle' })
+			return
+		}
 		if (input === 'q' || key.escape || key.leftArrow) {
 			onBack()
 			return
@@ -70,6 +108,39 @@ export function AssetsList({ url, auth, onSelect, onBack }: Props) {
 		if (key.pageDown) setCursor((c) => Math.min(filtered.length - 1, c + visible))
 		if (input === 'g') setCursor(0)
 		if (input === 'G') setCursor(filtered.length - 1)
+		if (input === ' ') {
+			const a = filtered[cursor]
+			if (!a) return
+			const key = a.assetKey.path.join('/')
+			setSelected((s) => {
+				const next = new Set(s)
+				if (next.has(key)) next.delete(key)
+				else next.add(key)
+				return next
+			})
+			return
+		}
+		if (input === 'a') {
+			setSelected(new Set(filtered.map((a) => a.assetKey.path.join('/'))))
+			return
+		}
+		if (input === 'A') {
+			setSelected(new Set())
+			return
+		}
+		if (input === 'm') {
+			const names =
+				selected.size > 0
+					? assets!.filter((a) => selected.has(a.assetKey.path.join('/'))).map(
+							(a) => a.assetKey.path[a.assetKey.path.length - 1]!,
+						)
+					: filtered[cursor]
+						? [filtered[cursor]!.assetKey.path[filtered[cursor]!.assetKey.path.length - 1]!]
+						: []
+			if (names.length === 0) return
+			setPhase({ kind: 'confirm', assets: names })
+			return
+		}
 		if (key.return) {
 			const a = filtered[cursor]
 			if (a) onSelect(a)
@@ -101,6 +172,35 @@ export function AssetsList({ url, auth, onSelect, onBack }: Props) {
 
 	return (
 		<Box flexDirection="column">
+			{phase.kind === 'confirm' && (
+				<Box marginBottom={1} flexDirection="column">
+					<Text color="yellow">
+						Materialise {phase.assets.length} asset(s)? {phase.assets.join(', ')}
+					</Text>
+					<Text>
+						<Text color="green">y</Text> confirm · <Text color="red">n</Text> cancel
+					</Text>
+				</Box>
+			)}
+			{phase.kind === 'launching' && (
+				<Box marginBottom={1}>
+					<Spinner label="Launching..." />
+				</Box>
+			)}
+			{phase.kind === 'error' && (
+				<Box marginBottom={1} flexDirection="column">
+					<Text color="red">Launch failed: {phase.message}</Text>
+					<Text dimColor>↵ dismiss</Text>
+				</Box>
+			)}
+			{selected.size > 0 && (
+				<Box marginBottom={1}>
+					<Text>
+						<Text bold>Selected:</Text> {selected.size} ·{' '}
+						<Text color="cyan">m</Text> materialise · <Text color="cyan">A</Text> clear
+					</Text>
+				</Box>
+			)}
 			{(filterInput || filter) && (
 				<Box marginBottom={1}>
 					{filterInput ? (
@@ -128,6 +228,7 @@ export function AssetsList({ url, auth, onSelect, onBack }: Props) {
 			)}
 			<Box>
 				<Box width={2} />
+				<Box width={3} />
 				<Box width={nameWidth + 2}>
 					<Text bold>ASSET</Text>
 				</Box>
@@ -143,18 +244,21 @@ export function AssetsList({ url, auth, onSelect, onBack }: Props) {
 			</Box>
 			{slice.map((a, sliceIdx) => {
 				const i = start + sliceIdx
-				const selected = i === cursor
+				const isCursor = i === cursor
+				const isSelected = selected.has(a.assetKey.path.join('/'))
 				const lastMat = a.assetMaterializations[0]
 				const stale = a.staleStatus
-				const staleColour =
-					stale === 'FRESH' ? 'green' : stale === 'STALE' ? 'yellow' : 'gray'
+				const staleColour = stale === 'FRESH' ? 'green' : stale === 'STALE' ? 'yellow' : 'gray'
 				return (
 					<Box key={a.assetKey.path.join('/')}>
 						<Box width={2}>
-							<Text color="cyan">{selected ? '›' : ' '}</Text>
+							<Text color="cyan">{isCursor ? '›' : ' '}</Text>
+						</Box>
+						<Box width={3} flexShrink={0}>
+							<Text color="cyan">{isSelected ? '✓' : ' '}</Text>
 						</Box>
 						<Box width={nameWidth + 2} flexShrink={0}>
-							<Text color={selected ? 'cyan' : undefined} wrap="truncate">
+							<Text color={isCursor ? 'cyan' : undefined} wrap="truncate">
 								{a.assetKey.path.join('/')}
 							</Text>
 						</Box>

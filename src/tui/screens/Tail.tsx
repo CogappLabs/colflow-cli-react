@@ -120,9 +120,7 @@ export function Tail({ url, auth, runId, onBack }: Props) {
 					slice.map((e, i) => (
 						<Box key={`${start + i}-${e.timestamp}`}>
 							<Box width={9}>
-								<Text color={levelColour(e.level)} dimColor={!levelColour(e.level)}>
-									{e.level}
-								</Text>
+								<Text color={levelColour(e.level)}>{e.level}</Text>
 							</Box>
 							{e.stepKey && (
 								<Box width={28}>
@@ -147,9 +145,7 @@ export function Tail({ url, auth, runId, onBack }: Props) {
 						/>
 					</Box>
 				) : (
-					<Text dimColor>
-						space pause · / filter · c clear · ↑/↓ scroll · G bottom · q back
-					</Text>
+					<Text dimColor>space pause · / filter · c clear · ↑/↓ scroll · G bottom · q back</Text>
 				)}
 			</Box>
 		</Box>

@@ -154,9 +154,7 @@ export async function runEsCheck({
 			}
 		} else {
 			if (json) {
-				process.stdout.write(
-					`${JSON.stringify({ ok: false, url: base, error: String(err) })}\n`,
-				)
+				process.stdout.write(`${JSON.stringify({ ok: false, url: base, error: String(err) })}\n`)
 				process.exit(0)
 			}
 			process.stdout.write(`${c('✗ Elasticsearch:', 'red')} ${base}\n`)
@@ -191,11 +189,7 @@ export async function runEsCheck({
 	let indexList: EsIndex[] = []
 	if (indices) {
 		try {
-			indexList = await esGet<EsIndex[]>(
-				`${base}/_cat/indices?format=json&bytes=b`,
-				key,
-				insecure,
-			)
+			indexList = await esGet<EsIndex[]>(`${base}/_cat/indices?format=json&bytes=b`, key, insecure)
 			indexList.sort((a, b) => a.index.localeCompare(b.index))
 		} catch (e) {
 			if (!json) process.stdout.write(`${c('indices fetch failed:', 'yellow')} ${e}\n`)
@@ -236,9 +230,7 @@ export async function runEsCheck({
 			`  Shards:         ${health.active_shards ?? 0} active / ${health.active_primary_shards ?? 0} primary\n`,
 		)
 		if ((health.unassigned_shards ?? 0) > 0) {
-			process.stdout.write(
-				`  Unassigned:     ${c(String(health.unassigned_shards), 'red')}\n`,
-			)
+			process.stdout.write(`  Unassigned:     ${c(String(health.unassigned_shards), 'red')}\n`)
 		}
 		process.stdout.write(
 			`  Active %:       ${(health.active_shards_percent_as_number ?? 0).toFixed(1)}%\n`,

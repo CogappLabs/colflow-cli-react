@@ -1,4 +1,4 @@
-import { fetchAssetDetail, makeClient, type MetadataEntry } from '../client/index.ts'
+import { fetchAssetDetail, type MetadataEntry, makeClient } from '../client/index.ts'
 import { timeAgo } from '../format/index.ts'
 
 interface Opts {

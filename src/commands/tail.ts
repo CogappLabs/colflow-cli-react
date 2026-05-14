@@ -91,8 +91,7 @@ export async function runTail({ url, auth, json, id, interval }: Opts): Promise<
 					})}\n`,
 				)
 			} else {
-				const c =
-					d.status === 'SUCCESS' ? 'green' : d.status === 'FAILURE' ? 'red' : 'yellow'
+				const c = d.status === 'SUCCESS' ? 'green' : d.status === 'FAILURE' ? 'red' : 'yellow'
 				process.stdout.write(
 					`\nRun ${colour(d.status, c)} — ${d.stats?.stepsSucceeded ?? 0} ok, ${
 						d.stats?.stepsFailed ?? 0

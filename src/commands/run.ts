@@ -21,8 +21,6 @@ export async function runRun({ url, auth, json, id }: Opts): Promise<void> {
 	process.stdout.write(`Start  ${formatTimestamp(r.startTime)}\n`)
 	process.stdout.write(`End    ${formatTimestamp(r.endTime)}\n`)
 	if (r.stats) {
-		process.stdout.write(
-			`Steps  ${r.stats.stepsSucceeded} ok, ${r.stats.stepsFailed} failed\n`,
-		)
+		process.stdout.write(`Steps  ${r.stats.stepsSucceeded} ok, ${r.stats.stepsFailed} failed\n`)
 	}
 }

@@ -1,19 +1,32 @@
 import { FullScreenBox } from 'fullscreen-ink'
 import { Box, Text, useApp, useInput } from 'ink'
 import { useEffect, useState } from 'react'
+import { t } from './i18n/en.ts'
+import type {
+	AssetCheckEval,
+	AssetListNode,
+	Job,
+	MetadataEntry,
+	Run,
+	RunStep,
+} from '../client/index.ts'
 import { fetchRun, makeClient } from '../client/index.ts'
-import type { AssetListNode, Job, Run, RunStep } from '../client/index.ts'
 import { AssetSample } from './screens/AssetSample.tsx'
 import { AssetSampleById } from './screens/AssetSampleById.tsx'
 import { AssetSchema } from './screens/AssetSchema.tsx'
-import { AssetView } from './screens/AssetView.tsx'
 import { AssetsList } from './screens/AssetsList.tsx'
+import { AssetView } from './screens/AssetView.tsx'
 import { Details } from './screens/Details.tsx'
 import { JobDetail } from './screens/JobDetail.tsx'
 import { JobsList } from './screens/JobsList.tsx'
+import { CheckDetail } from './screens/CheckDetail.tsx'
 import { Menu, type MenuChoice } from './screens/Menu.tsx'
+import { MetadataDetail } from './screens/MetadataDetail.tsx'
+import { Reload } from './screens/Reload.tsx'
 import { RunDetail } from './screens/RunDetail.tsx'
+import { RunsDiff } from './screens/RunsDiff.tsx'
 import { RunsList } from './screens/RunsList.tsx'
+import { SensorsList } from './screens/SensorsList.tsx'
 import { Tail } from './screens/Tail.tsx'
 
 interface Props {
@@ -26,12 +39,28 @@ type View =
 	| { kind: 'runs' }
 	| { kind: 'run'; run: Run }
 	| { kind: 'tail'; run: Run }
-	| { kind: 'asset'; assetPath: string[]; runContext?: { runId: string; stepKey: string; runStatus?: string }; back: View }
+	| {
+			kind: 'asset'
+			assetPath: string[]
+			runContext?: { runId: string; stepKey: string; runStatus?: string }
+			back: View
+	  }
 	| { kind: 'assets' }
 	| { kind: 'asset-schema'; parquetPath: string; assetName: string; back: View }
-	| { kind: 'asset-sample'; parquetPath: string; assetName: string; filters?: { path: string[]; value: string }[]; back: View }
+	| {
+			kind: 'asset-sample'
+			parquetPath: string
+			assetName: string
+			filters?: { path: string[]; value: string }[]
+			back: View
+	  }
 	| { kind: 'asset-sample-by-id'; parquetPath: string; assetName: string; back: View }
 	| { kind: 'jobs' }
+	| { kind: 'sensors' }
+	| { kind: 'reload' }
+	| { kind: 'runs-diff'; runId1: string; runId2: string }
+	| { kind: 'metadata'; entry: MetadataEntry; back: View }
+	| { kind: 'check'; check: AssetCheckEval; back: View }
 	| { kind: 'job-detail'; job: Job }
 	| { kind: 'launched-run'; runId: string }
 	| { kind: 'details'; title: string; body: string; back: View }
@@ -58,6 +87,16 @@ function viewLabel(v: View): string {
 			return `Sample by ID: ${v.assetName}`
 		case 'jobs':
 			return 'Jobs'
+		case 'sensors':
+			return 'Sensors'
+		case 'reload':
+			return 'Reload Dagster'
+		case 'runs-diff':
+			return `Diff ${v.runId1.slice(0, 8)} ↔ ${v.runId2.slice(0, 8)}`
+		case 'metadata':
+			return v.entry.label
+		case 'check':
+			return `Check: ${v.check.checkName}`
 		case 'job-detail':
 			return `Job ${v.job.name}`
 		case 'launched-run':
@@ -70,31 +109,41 @@ function viewLabel(v: View): string {
 function viewKeymap(v: View): string {
 	switch (v.kind) {
 		case 'menu':
-			return '↑/↓ select · ↵ open · q quit'
+			return t.footer.menu
 		case 'runs':
-			return '↑/↓ pgUp/pgDn g/G · ↵ open · q back'
+			return t.footer.runs
 		case 'run':
-			return '↑/↓ pgUp/pgDn g/G · ↵ asset · t tail · esc/← back'
+			return t.footer.run
 		case 'tail':
-			return 'space pause · / filter · c clear · ↑/↓ scroll · esc/← back'
+			return t.footer.tail
 		case 'asset':
-			return '↑/↓ select · ↵ open · m materialise · s schema · d sample · i by-ID · esc/← back'
+			return t.footer.asset
 		case 'assets':
-			return '↑/↓ pgUp/pgDn g/G · / search · ↵ open · esc/← back'
+			return t.footer.assets
 		case 'asset-schema':
-			return '↑/↓ pgUp/pgDn g/G · esc/← back'
+			return t.footer.assetSchema
 		case 'asset-sample':
-			return '↑/↓ row · ↵ full row · esc/← back'
+			return t.footer.assetSample
 		case 'asset-sample-by-id':
-			return '↵ submit · esc back'
+			return t.footer.assetSampleById
 		case 'jobs':
-			return '↑/↓ pgUp/pgDn g/G · ↵ open · esc/← back'
+			return t.footer.jobs
+		case 'sensors':
+			return t.footer.sensors
+		case 'reload':
+			return t.footer.reload
+		case 'runs-diff':
+			return t.footer.runsDiff
+		case 'metadata':
+			return '↑/↓ pgUp/pgDn g/G · esc/← back'
+		case 'check':
+			return '↵ open detail · esc/← back'
 		case 'job-detail':
-			return 'l launch · esc/← back'
+			return t.footer.jobDetail
 		case 'launched-run':
-			return ''
+			return t.footer.launchedRun
 		case 'details':
-			return '↑/↓ scroll · g/G top/bottom · pgUp/pgDn · esc/← back'
+			return t.footer.details
 	}
 }
 
@@ -114,14 +163,14 @@ export function App({ url, auth }: Props) {
 		if (choice === 'runs') setView({ kind: 'runs' })
 		if (choice === 'assets') setView({ kind: 'assets' })
 		if (choice === 'jobs') setView({ kind: 'jobs' })
+		if (choice === 'sensors') setView({ kind: 'sensors' })
+		if (choice === 'reload') setView({ kind: 'reload' })
 	}
 
 	let body: React.ReactNode
 	switch (view.kind) {
 		case 'details':
-			body = (
-				<Details title={view.title} body={view.body} onBack={() => setView(view.back)} />
-			)
+			body = <Details title={view.title} body={view.body} onBack={() => setView(view.back)} />
 			break
 		case 'asset': {
 			const v = view
@@ -142,9 +191,9 @@ export function App({ url, auth }: Props) {
 						setView({ kind: 'asset-sample-by-id', parquetPath, assetName, back: v })
 					}
 					onLaunched={(runId) => setView({ kind: 'launched-run', runId })}
-					onDetails={(title, b) =>
-						setView({ kind: 'details', title, body: b, back: v })
-					}
+					onDetails={(title, b) => setView({ kind: 'details', title, body: b, back: v })}
+					onMetadata={(entry) => setView({ kind: 'metadata', entry, back: v })}
+					onCheck={(check) => setView({ kind: 'check', check, back: v })}
 				/>
 			)
 			break
@@ -182,6 +231,18 @@ export function App({ url, auth }: Props) {
 				/>
 			)
 			break
+		case 'sensors':
+			body = (
+				<SensorsList
+					url={url}
+					auth={auth}
+					onBack={() => setView({ kind: 'menu' })}
+				/>
+			)
+			break
+		case 'reload':
+			body = <Reload url={url} auth={auth} onBack={() => setView({ kind: 'menu' })} />
+			break
 		case 'jobs':
 			body = (
 				<JobsList
@@ -201,9 +262,7 @@ export function App({ url, auth }: Props) {
 					job={v.job}
 					onBack={() => setView({ kind: 'jobs' })}
 					onLaunched={(runId) => setView({ kind: 'launched-run', runId })}
-					onSelectAsset={(assetPath) =>
-						setView({ kind: 'asset', assetPath, back: v })
-					}
+					onSelectAsset={(assetPath) => setView({ kind: 'asset', assetPath, back: v })}
 				/>
 			)
 			break
@@ -235,9 +294,7 @@ export function App({ url, auth }: Props) {
 					assetName={view.assetName}
 					filters={view.filters}
 					onBack={() => setView(view.back)}
-					onDetails={(title, b) =>
-						setView({ kind: 'details', title, body: b, back: view })
-					}
+					onDetails={(title, b) => setView({ kind: 'details', title, body: b, back: view })}
 				/>
 			)
 			break
@@ -267,10 +324,9 @@ export function App({ url, auth }: Props) {
 				<AssetsList
 					url={url}
 					auth={auth}
-					onSelect={(asset) =>
-						setView({ kind: 'asset', assetPath: asset.assetKey.path, back: v })
-					}
+					onSelect={(asset) => setView({ kind: 'asset', assetPath: asset.assetKey.path, back: v })}
 					onBack={() => setView({ kind: 'menu' })}
+					onLaunched={(runId) => setView({ kind: 'launched-run', runId })}
 				/>
 			)
 			break
@@ -282,9 +338,37 @@ export function App({ url, auth }: Props) {
 					auth={auth}
 					onSelect={(run) => setView({ kind: 'run', run })}
 					onQuit={() => setView({ kind: 'menu' })}
+					onDiff={(runId1, runId2) =>
+						setView({ kind: 'runs-diff', runId1, runId2 })
+					}
 				/>
 			)
 			break
+		case 'runs-diff':
+			body = (
+				<RunsDiff
+					url={url}
+					auth={auth}
+					runId1={view.runId1}
+					runId2={view.runId2}
+					onBack={() => setView({ kind: 'runs' })}
+				/>
+			)
+			break
+		case 'metadata':
+			body = <MetadataDetail entry={view.entry} onBack={() => setView(view.back)} />
+			break
+		case 'check': {
+			const v = view
+			body = (
+				<CheckDetail
+					check={v.check}
+					onBack={() => setView(v.back)}
+					onMetadata={(entry) => setView({ kind: 'metadata', entry, back: v })}
+				/>
+			)
+			break
+		}
 		default:
 			body = <Menu onSelect={onMenu} />
 	}
@@ -301,7 +385,7 @@ export function App({ url, auth }: Props) {
 				justifyContent="space-between"
 			>
 				<Text bold color="cyan">
-					colflow
+					{t.app.title}
 				</Text>
 				<Text dimColor>{viewLabel(view)}</Text>
 				<Text dimColor>{url}</Text>
@@ -384,13 +468,5 @@ function RunDetailWithHotkeys({
 	useInput((input) => {
 		if (input === 't') onTail()
 	})
-	return (
-		<RunDetail
-			url={url}
-			auth={auth}
-			run={run}
-			onBack={onBack}
-			onSelectStep={onSelectStep}
-		/>
-	)
+	return <RunDetail url={url} auth={auth} run={run} onBack={onBack} onSelectStep={onSelectStep} />
 }

@@ -893,10 +893,7 @@ export async function fetchSensors(client: GraphQLClient): Promise<SensorState[]
 	return (data.sensorsOrError.results ?? []).map((r) => r.sensorState)
 }
 
-export async function launchAssetRun(
-	client: GraphQLClient,
-	assetNames: string[],
-): Promise<string> {
+export async function launchAssetRun(client: GraphQLClient, assetNames: string[]): Promise<string> {
 	const repo = await getRepository(client)
 	const data = await client.request<{
 		launchRun: {

@@ -23,9 +23,7 @@ export async function runConfig({ url, auth, json, job }: Opts): Promise<void> {
 	for (const f of cfg.fields) {
 		const required = f.isRequired ? 'required' : 'optional'
 		const def = f.defaultValueAsJson ? ` = ${f.defaultValueAsJson}` : ''
-		process.stdout.write(
-			`  ${f.name.padEnd(maxName)}  ${f.configTypeKey}  ${required}${def}\n`,
-		)
+		process.stdout.write(`  ${f.name.padEnd(maxName)}  ${f.configTypeKey}  ${required}${def}\n`)
 		if (f.description) {
 			process.stdout.write(`  ${' '.repeat(maxName)}  ${f.description}\n`)
 		}
