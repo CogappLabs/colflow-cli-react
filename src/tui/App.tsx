@@ -11,11 +11,14 @@ import { AssetsList } from './screens/AssetsList.tsx'
 import { AssetView } from './screens/AssetView.tsx'
 import { CheckDetail } from './screens/CheckDetail.tsx'
 import { Details } from './screens/Details.tsx'
+import { ESCheck } from './screens/ESCheck.tsx'
+import { ESIndexDetail } from './screens/ESIndexDetail.tsx'
+import { ESSample } from './screens/ESSample.tsx'
+import { ESSchema } from './screens/ESSchema.tsx'
 import { JobDetail } from './screens/JobDetail.tsx'
 import { JobsList } from './screens/JobsList.tsx'
 import { Menu, type MenuChoice } from './screens/Menu.tsx'
 import { MetadataDetail } from './screens/MetadataDetail.tsx'
-import { ESCheck } from './screens/ESCheck.tsx'
 import { Reload } from './screens/Reload.tsx'
 import { RunDetail } from './screens/RunDetail.tsx'
 import { RunsDiff } from './screens/RunsDiff.tsx'
@@ -54,6 +57,9 @@ type View =
 	| { kind: 'sensors' }
 	| { kind: 'reload' }
 	| { kind: 'es-check' }
+	| { kind: 'es-index'; index: string }
+	| { kind: 'es-schema'; index: string }
+	| { kind: 'es-sample'; index: string }
 	| { kind: 'runs-diff'; runId1: string; runId2: string }
 	| { kind: 'metadata'; entry: MetadataEntry; back: View }
 	| { kind: 'check'; check: AssetCheckEval; back: View }
@@ -89,6 +95,12 @@ function viewLabel(v: View): string {
 			return 'Reload Dagster'
 		case 'es-check':
 			return 'Elasticsearch'
+		case 'es-index':
+			return `ES index ${v.index}`
+		case 'es-schema':
+			return `ES schema ${v.index}`
+		case 'es-sample':
+			return `ES sample ${v.index}`
 		case 'runs-diff':
 			return `Diff ${v.runId1.slice(0, 8)} ↔ ${v.runId2.slice(0, 8)}`
 		case 'metadata':
@@ -131,7 +143,13 @@ function viewKeymap(v: View): string {
 		case 'reload':
 			return t.footer.reload
 		case 'es-check':
-			return '↑/↓ pgUp/pgDn g/G · i/a tabs · / search · r refresh · esc/← back'
+			return '↑/↓ pgUp/pgDn g/G · i/a tabs · ↵ open · / search · r refresh · esc/← back'
+		case 'es-index':
+			return 's schema · d sample · esc/← back'
+		case 'es-schema':
+			return '↑/↓ pgUp/pgDn g/G · esc/← back'
+		case 'es-sample':
+			return '↑/↓ select · ↵ full doc · esc/← back'
 		case 'runs-diff':
 			return t.footer.runsDiff
 		case 'metadata':
@@ -246,8 +264,42 @@ export function App({ url, auth }: Props) {
 			body = <Reload url={url} auth={auth} onBack={() => setView({ kind: 'menu' })} />
 			break
 		case 'es-check':
-			body = <ESCheck onBack={() => setView({ kind: 'menu' })} />
+			body = (
+				<ESCheck
+					onBack={() => setView({ kind: 'menu' })}
+					onSelectIndex={(index) => setView({ kind: 'es-index', index })}
+				/>
+			)
 			break
+		case 'es-index':
+			body = (
+				<ESIndexDetail
+					index={view.index}
+					onBack={() => setView({ kind: 'es-check' })}
+					onSchema={(index) => setView({ kind: 'es-schema', index })}
+					onSample={(index) => setView({ kind: 'es-sample', index })}
+				/>
+			)
+			break
+		case 'es-schema':
+			body = (
+				<ESSchema
+					index={view.index}
+					onBack={() => setView({ kind: 'es-index', index: view.index })}
+				/>
+			)
+			break
+		case 'es-sample': {
+			const v = view
+			body = (
+				<ESSample
+					index={v.index}
+					onBack={() => setView({ kind: 'es-index', index: v.index })}
+					onDetails={(title, b) => setView({ kind: 'details', title, body: b, back: v })}
+				/>
+			)
+			break
+		}
 		case 'jobs':
 			body = (
 				<JobsList

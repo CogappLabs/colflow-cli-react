@@ -55,7 +55,13 @@ export const t = {
 	},
 
 	assets: {
-		header: { asset: 'ASSET', group: 'GROUP', lastMat: 'LAST MAT', stale: 'STALE', checks: 'CHECKS' },
+		header: {
+			asset: 'ASSET',
+			group: 'GROUP',
+			lastMat: 'LAST MAT',
+			stale: 'STALE',
+			checks: 'CHECKS',
+		},
 		empty: 'No assets found.',
 		never: 'never',
 		filterEdit: 'c clear · / edit',
@@ -203,6 +209,33 @@ export const t = {
 		noAliases: '(no aliases)',
 		header: { index: 'INDEX', health: 'HEALTH', docs: 'DOCS', size: 'SIZE' },
 		aliasHeader: { alias: 'ALIAS', index: 'INDEX', write: 'WRITE' },
+	},
+
+	esIndexDetail: {
+		loading: 'Loading index...',
+		healthLabel: 'Health:',
+		statusLabel: 'Status:',
+		docsLabel: 'Docs:',
+		sizeLabel: 'Size:',
+		aliasesLabel: 'Aliases:',
+		writeSuffix: '(write)',
+		schemaAction: 'view mapping/schema',
+		sampleAction: 'sample documents',
+	},
+
+	esSchema: {
+		loading: 'Loading mapping...',
+		empty: '(no fields)',
+		header: { field: 'FIELD', type: 'TYPE' },
+		title: (index: string, n: number) => `${index} mapping (${n} fields)`,
+	},
+
+	esSample: {
+		loading: 'Searching...',
+		empty: '(no documents)',
+		title: (index: string, n: number) => `${index} - first ${n} documents`,
+		footer: '↵ view full source · ↑/↓ select · esc back',
+		noTitleField: '(no title field)',
 	},
 
 	common: {

@@ -2,9 +2,9 @@ import { Spinner, TextInput } from '@inkjs/ui'
 import { Box, Text, useInput } from 'ink'
 import { useEffect, useMemo, useState } from 'react'
 import {
+	ESError,
 	type EsAlias,
 	type EsIndex,
-	ESError,
 	fetchAliases,
 	fetchHealth,
 	fetchIndices,
@@ -21,11 +21,12 @@ import { useViewportWindow } from '../useViewport.ts'
 
 interface Props {
 	onBack: () => void
+	onSelectIndex: (index: string) => void
 }
 
 type Tab = 'indices' | 'aliases'
 
-export function ESCheck({ onBack }: Props) {
+export function ESCheck({ onBack, onSelectIndex }: Props) {
 	const [health, setHealth] = useState<Health | null>(null)
 	const [indices, setIndices] = useState<EsIndex[] | null>(null)
 	const [aliases, setAliases] = useState<EsAlias[] | null>(null)
@@ -41,6 +42,7 @@ export function ESCheck({ onBack }: Props) {
 	const base = resolveUrl(undefined)
 	const key = resolveKey(undefined)
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: `tick` is a manual refresh trigger.
 	useEffect(() => {
 		let cancelled = false
 		const run = async () => {
@@ -132,6 +134,15 @@ export function ESCheck({ onBack }: Props) {
 		if (key2.pageDown) setCursor((c) => Math.min(filteredCount - 1, c + visible))
 		if (input === 'g') setCursor(0)
 		if (input === 'G') setCursor(filteredCount - 1)
+		if (key2.return) {
+			if (tab === 'indices') {
+				const ix = filteredIndices[cursor]
+				if (ix) onSelectIndex(ix.index)
+			} else {
+				const al = filteredAliases[cursor]
+				if (al) onSelectIndex(al.index)
+			}
+		}
 	})
 
 	if (loading && !health) return <Spinner label={t.esCheck.connecting} />
@@ -232,7 +243,7 @@ export function ESCheck({ onBack }: Props) {
 							<Text color="cyan" bold>
 								{filter}
 							</Text>{' '}
-							({filteredCount}/{(tab === 'indices' ? indices : aliases)?.length ?? 0}) —{' '}
+							({filteredCount}/{(tab === 'indices' ? indices : aliases)?.length ?? 0}){' · '}
 							{t.esCheck.filterControls}
 						</Text>
 					)}

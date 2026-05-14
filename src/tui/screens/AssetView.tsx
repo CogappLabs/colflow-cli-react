@@ -499,7 +499,7 @@ export function AssetView({
 
 	const lastMat = detail.assetMaterializations[0]
 	const staleColour =
-		detail.staleStatus === 'FRESH' ? 'green' : detail.staleStatus === 'STALE' ? 'yellow' : 'gray'
+		detail.staleStatus === 'FRESH' ? 'green' : detail.staleStatus === 'STALE' ? 'yellow' : 'cyan'
 	const maxLabel = Math.max(8, ...rows.map((r) => r.label.length))
 
 	return (

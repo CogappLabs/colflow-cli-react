@@ -105,11 +105,7 @@ export async function fetchIndices(
 	key: string | undefined,
 	insecure: boolean,
 ): Promise<EsIndex[]> {
-	const rows = await esGet<EsIndex[]>(
-		`${base}/_cat/indices?format=json&bytes=b`,
-		key,
-		insecure,
-	)
+	const rows = await esGet<EsIndex[]>(`${base}/_cat/indices?format=json&bytes=b`, key, insecure)
 	return rows.sort((a, b) => a.index.localeCompare(b.index))
 }
 
@@ -125,9 +121,7 @@ export async function fetchAliases(
 	insecure: boolean,
 ): Promise<EsAlias[]> {
 	const rows = await esGet<EsAlias[]>(`${base}/_cat/aliases?format=json`, key, insecure)
-	return rows.sort(
-		(a, b) => a.alias.localeCompare(b.alias) || a.index.localeCompare(b.index),
-	)
+	return rows.sort((a, b) => a.alias.localeCompare(b.alias) || a.index.localeCompare(b.index))
 }
 
 export async function fetchIndex(
@@ -142,6 +136,109 @@ export async function fetchIndex(
 		insecure,
 	)
 	return rows[0] ?? null
+}
+
+export interface MappingField {
+	name: string
+	type: string
+	path: string[]
+}
+
+interface MappingProperty {
+	type?: string
+	properties?: Record<string, MappingProperty>
+	fields?: Record<string, MappingProperty>
+}
+
+function flattenProperties(
+	props: Record<string, MappingProperty>,
+	prefix: string[] = [],
+	out: MappingField[] = [],
+): MappingField[] {
+	for (const [name, p] of Object.entries(props)) {
+		const path = [...prefix, name]
+		if (p.properties) {
+			flattenProperties(p.properties, path, out)
+		} else {
+			out.push({ name, path, type: p.type ?? 'object' })
+		}
+		// Multi-field mappings: a leaf can also have sub-fields (e.g. `name.keyword`).
+		// Surface them as separate flattened entries so the schema view shows both.
+		if (p.fields) {
+			for (const [subName, sub] of Object.entries(p.fields)) {
+				out.push({ name: subName, path: [...path, subName], type: sub.type ?? 'object' })
+			}
+		}
+	}
+	return out
+}
+
+export async function fetchMapping(
+	base: string,
+	index: string,
+	key: string | undefined,
+	insecure: boolean,
+): Promise<MappingField[]> {
+	const data = await esGet<
+		Record<string, { mappings?: { properties?: Record<string, MappingProperty> } }>
+	>(`${base}/${index}/_mapping`, key, insecure)
+	const entry = Object.values(data)[0]
+	const props = entry?.mappings?.properties ?? {}
+	return flattenProperties(props).sort((a, b) => a.path.join('.').localeCompare(b.path.join('.')))
+}
+
+export interface SearchHit {
+	_id: string
+	_source: Record<string, unknown>
+}
+
+export async function fetchHits(
+	base: string,
+	index: string,
+	key: string | undefined,
+	insecure: boolean,
+	limit = 10,
+): Promise<SearchHit[]> {
+	const data = await esGet<{ hits?: { hits?: SearchHit[] } }>(
+		`${base}/${index}/_search?size=${limit}`,
+		key,
+		insecure,
+	)
+	return data.hits?.hits ?? []
+}
+
+export interface IndexStats {
+	docs: number
+	storeBytes: number
+	primaries: { docs: { count: number }; store: { size_in_bytes: number } } | null
+}
+
+export async function fetchIndexStats(
+	base: string,
+	index: string,
+	key: string | undefined,
+	insecure: boolean,
+): Promise<IndexStats | null> {
+	try {
+		const data = await esGet<{
+			indices?: Record<
+				string,
+				{
+					primaries?: { docs?: { count?: number }; store?: { size_in_bytes?: number } }
+					total?: { docs?: { count?: number }; store?: { size_in_bytes?: number } }
+				}
+			>
+		}>(`${base}/${index}/_stats`, key, insecure)
+		const entry = data.indices?.[index]
+		if (!entry) return null
+		return {
+			docs: entry.total?.docs?.count ?? entry.primaries?.docs?.count ?? 0,
+			storeBytes: entry.total?.store?.size_in_bytes ?? entry.primaries?.store?.size_in_bytes ?? 0,
+			primaries: null,
+		}
+	} catch {
+		return null
+	}
 }
 
 export function statusColour(s: string): string {
