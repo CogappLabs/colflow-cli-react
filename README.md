@@ -10,6 +10,13 @@ Bun + TypeScript + Ink TUI for Dagster collection-flow pipelines. Wraps Dagster 
 brew install CogappLabs/tap/colflow
 ```
 
+The `CogappLabs/tap/` prefix auto-taps the formula repo on first install. If you prefer the two-step form:
+
+```sh
+brew tap CogappLabs/tap
+brew install colflow
+```
+
 This installs the standalone binary. No Bun or Node required. Replaces the Go-based `colflow` binary if you had it installed previously.
 
 Builds: macOS (arm64, x64), Linux (x64, arm64).
