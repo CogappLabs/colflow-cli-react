@@ -35,7 +35,7 @@ export class ESError extends Error {
 	}
 }
 
-function resolveEnvRef(v: string | undefined): string | undefined {
+export function resolveEnvRef(v: string | undefined): string | undefined {
 	if (!v) return undefined
 	if (v.startsWith('$') && v.length > 1) return process.env[v.slice(1)]
 	return v
@@ -150,7 +150,7 @@ interface MappingProperty {
 	fields?: Record<string, MappingProperty>
 }
 
-function flattenProperties(
+export function flattenProperties(
 	props: Record<string, MappingProperty>,
 	prefix: string[] = [],
 	out: MappingField[] = [],

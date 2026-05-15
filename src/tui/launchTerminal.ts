@@ -57,10 +57,10 @@ end tell`
 	return { ok: false, message: `Unsupported platform ${platform}.` }
 }
 
-function shellQuote(s: string): string {
+export function shellQuote(s: string): string {
 	return `'${s.replace(/'/g, `'\\''`)}'`
 }
 
-function appleQuote(s: string): string {
+export function appleQuote(s: string): string {
 	return `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
 }

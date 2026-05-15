@@ -7,7 +7,7 @@ interface Opts {
 	detach: boolean
 }
 
-function findParquets(dir: string): string[] {
+export function findParquets(dir: string): string[] {
 	if (!existsSync(dir)) return []
 	const out: string[] = []
 	for (const entry of readdirSync(dir)) {
@@ -20,7 +20,7 @@ function findParquets(dir: string): string[] {
 	return out
 }
 
-function viewName(path: string, root: string): string {
+export function viewName(path: string, root: string): string {
 	const rel = path.replace(`${root}/`, '').replace(/\.parquet$/, '')
 	return rel.replace(/\//g, '__')
 }
