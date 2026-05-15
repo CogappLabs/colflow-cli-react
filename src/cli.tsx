@@ -11,6 +11,7 @@ import { runErrors } from './commands/errors.ts'
 import { runEsCheck } from './commands/escheck.ts'
 import { runGraph } from './commands/graph.ts'
 import { runInspect } from './commands/inspect.ts'
+import { runLaunch } from './commands/launch.ts'
 import { runLogs } from './commands/logs.ts'
 import { runMaterialise } from './commands/materialise.ts'
 import { runNewAsset } from './commands/newasset.ts'
@@ -43,6 +44,7 @@ const cli = meow(
 	  errors <id>             Failures for a run
 	  tail <id>               Stream run events
 	  materialise <name>...   Launch a run for one or more assets
+	  launch <job>            Launch a run for a job
 	  cancel <id>             Cancel a run
 	  recheck <a:check>...    Re-run asset checks without rematerialising
 	  reload                  Reload Dagster code location
@@ -152,6 +154,9 @@ async function main() {
 			return
 		case 'materialise':
 			await runMaterialise({ url, auth, json, assets: rest })
+			return
+		case 'launch':
+			await runLaunch({ url, auth, json, job: cli.flags.job ?? rest[0] ?? '' })
 			return
 		case 'cancel':
 			await runCancel({ url, auth, json, id: needArg('id') })
