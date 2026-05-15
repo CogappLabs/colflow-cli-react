@@ -3,7 +3,9 @@ import { Box, Text, useApp, useInput } from 'ink'
 import { useEffect, useState } from 'react'
 import type { AssetCheckEval, Job, MetadataEntry, Run, RunStep } from '../client/index.ts'
 import { fetchRun, makeClient } from '../client/index.ts'
+import { detectFromEnv } from '../project/index.ts'
 import { t } from './i18n/en.ts'
+import { launchTerminal } from './launchTerminal.ts'
 import { AssetSample } from './screens/AssetSample.tsx'
 import { AssetSampleById } from './screens/AssetSampleById.tsx'
 import { AssetSchema } from './screens/AssetSchema.tsx'
@@ -167,6 +169,7 @@ function viewKeymap(v: View): string {
 
 export function App({ url, auth }: Props) {
 	const [view, setView] = useState<View>({ kind: 'menu' })
+	const [menuNotice, setMenuNotice] = useState<{ ok: boolean; message: string } | null>(null)
 	const { exit } = useApp()
 
 	useInput((input, key) => {
@@ -191,6 +194,13 @@ export function App({ url, auth }: Props) {
 		if (choice === 'sensors') setView({ kind: 'sensors' })
 		if (choice === 'reload') setView({ kind: 'reload' })
 		if (choice === 'es-check') setView({ kind: 'es-check' })
+		if (choice === 'duckdb') {
+			const project = detectFromEnv()
+			const cwd = project?.root ?? process.cwd()
+			const result = launchTerminal({ cwd, command: 'colflow duckdb', label: 'duckdb' })
+			setMenuNotice(result)
+			setTimeout(() => setMenuNotice(null), 5000)
+		}
 	}
 
 	let body: React.ReactNode
@@ -425,7 +435,7 @@ export function App({ url, auth }: Props) {
 			break
 		}
 		default:
-			body = <Menu onSelect={onMenu} />
+			body = <Menu onSelect={onMenu} notice={menuNotice} />
 	}
 
 	return (

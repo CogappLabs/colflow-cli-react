@@ -4,7 +4,15 @@ import { resolveUrl } from '../../es/index.ts'
 import { onWorkspaceResolved } from '../../project/workspace.ts'
 import { t } from '../i18n/en.ts'
 
-export type MenuChoice = 'runs' | 'assets' | 'jobs' | 'sensors' | 'es-check' | 'reload' | 'quit'
+export type MenuChoice =
+	| 'runs'
+	| 'assets'
+	| 'jobs'
+	| 'sensors'
+	| 'es-check'
+	| 'duckdb'
+	| 'reload'
+	| 'quit'
 
 interface MenuItem {
 	choice: MenuChoice
@@ -44,6 +52,12 @@ function buildItems(): MenuItem[] {
 			enabled: esConfigured,
 		},
 		{
+			choice: 'duckdb',
+			label: t.menu.items.duckdb.label,
+			hint: t.menu.items.duckdb.hint,
+			enabled: true,
+		},
+		{
 			choice: 'reload',
 			label: t.menu.items.reload.label,
 			hint: t.menu.items.reload.hint,
@@ -55,9 +69,10 @@ function buildItems(): MenuItem[] {
 
 interface Props {
 	onSelect: (choice: MenuChoice) => void
+	notice?: { ok: boolean; message: string } | null
 }
 
-export function Menu({ onSelect }: Props) {
+export function Menu({ onSelect, notice }: Props) {
 	const [cursor, setCursor] = useState(0)
 	const [, bump] = useState(0)
 	useEffect(() => onWorkspaceResolved(() => bump((n) => n + 1)), [])
@@ -98,6 +113,11 @@ export function Menu({ onSelect }: Props) {
 	return (
 		<Box flexDirection="column">
 			<Text bold>{t.menu.title}</Text>
+			{notice && (
+				<Box marginTop={1}>
+					<Text color={notice.ok ? 'green' : 'red'}>{notice.message}</Text>
+				</Box>
+			)}
 			<Box marginTop={1} flexDirection="column">
 				{ITEMS.map((item, i) => {
 					const selected = i === cursor

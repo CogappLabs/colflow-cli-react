@@ -21,7 +21,14 @@ export const t = {
 			assets: { label: 'Assets', hint: 'browse all assets, materialisation + stale status' },
 			jobs: { label: 'Jobs', hint: 'list all jobs in the repository' },
 			sensors: { label: 'Sensors', hint: 'list sensors with status + recent ticks' },
-			esCheck: { label: 'Elasticsearch', hint: '(TODO)' },
+			esCheck: {
+				label: 'Elasticsearch',
+				hint: 'cluster health, indices, aliases, mappings, sample docs',
+			},
+			duckdb: {
+				label: 'DuckDB',
+				hint: 'mount all parquets as views and open duckdb --ui in a new terminal',
+			},
 			reload: { label: 'Reload Dagster', hint: 'reload the code location after editing python' },
 			quit: { label: 'Quit', hint: '' },
 		},

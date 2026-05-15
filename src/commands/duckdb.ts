@@ -11,15 +11,11 @@ function findParquets(dir: string): string[] {
 	if (!existsSync(dir)) return []
 	const out: string[] = []
 	for (const entry of readdirSync(dir)) {
+		if (entry.startsWith('.')) continue
 		const full = join(dir, entry)
 		const stat = statSync(full)
 		if (stat.isFile() && entry.endsWith('.parquet')) out.push(full)
-		else if (stat.isDirectory() && !entry.startsWith('.')) {
-			// One level deep: covers output/caches/
-			for (const sub of readdirSync(full)) {
-				if (sub.endsWith('.parquet')) out.push(join(full, sub))
-			}
-		}
+		else if (stat.isDirectory()) out.push(...findParquets(full))
 	}
 	return out
 }
