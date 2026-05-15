@@ -32,6 +32,16 @@ bun install
 
 After `brew install` the binary is on PATH as `colflow`.
 
+### Prerequisite: a running Dagster server
+
+Almost every command talks to a Dagster instance over GraphQL. Start the dev server in your collection-flow project before running `colflow`:
+
+```sh
+uv run dg dev      # or `task start` if your project has a Taskfile
+```
+
+By default `colflow` connects to `http://localhost:3000`. Override with `--url` or the `DAGSTER_URL` env var (e.g. for Dagster Cloud). Without a reachable server the TUI menu still loads but Runs / Assets / Jobs / Sensors / Reload will be empty or error; `inspect`, `sample`, `duckdb`, `es-check` and `new-asset` work without it.
+
 **TUI mode** (interactive browser):
 
 ```sh
