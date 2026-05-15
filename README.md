@@ -30,17 +30,19 @@ bun install
 
 ## Quick Start
 
+After `brew install` the binary is on PATH as `colflow`.
+
 **TUI mode** (interactive browser):
 
 ```sh
-bun run dev
+colflow
 ```
 
 Launches a fullscreen terminal UI. Navigate with arrow keys, search, inspect runs and assets in real time.
 
 ### TUI features
 
-- **Menu**: Runs, Assets, Jobs, Sensors, Reload Dagster
+- **Menu**: Runs, Assets, Jobs, Sensors, Elasticsearch, DuckDB, Reload Dagster
 - **Runs list**: live polling, `d` to mark two runs and diff them, `↵` to drill in
 - **Run detail**: per-step status, asset checks summary, `t` tail, `x` cancel
 - **Tail**: live event stream, `space` pause, `/` filter, `↑/↓` scroll
@@ -48,22 +50,28 @@ Launches a fullscreen terminal UI. Navigate with arrow keys, search, inspect run
 - **Assets list**: `/` live search, `space` multi-select, `m` batch materialise
 - **Job detail**: layered DAG of in-job assets, `l` launch with confirmation
 - **Schema/Sample**: drill into local Parquet outputs (auto-discovers project root via Dagster workspace)
+- **Elasticsearch**: cluster health, indices, aliases tabs; drill into index for mapping + sample documents (only enabled when `ELASTICSEARCH_URL` / `ELASTICO_URL` is set)
+- **DuckDB**: opens a new terminal window with all parquets under the asset root mounted as views in `duckdb --ui`
 
 **One-shot commands** (scripting):
 
 ```sh
-bun run dev <command> [args] [flags]
+colflow <command> [args] [flags]
 ```
 
 Examples:
 
 ```sh
-bun run dev status                    # Latest run summary
-bun run dev runs --limit 10           # List recent runs
-bun run dev logs <id>                 # Print run logs
-bun run dev materialise asset1 asset2 # Launch a run
-bun run dev inspect output/data.parquet  # Inspect Parquet schema
+colflow status                    # Latest run summary
+colflow runs --limit 10           # List recent runs
+colflow logs <id>                 # Print run logs
+colflow materialise asset1 asset2 # Launch a run
+colflow inspect output/data.parquet  # Inspect Parquet schema
+colflow es-check                  # Elasticsearch cluster + indices summary
+colflow duckdb                    # Mount parquets and open duckdb --ui
 ```
+
+When developing from source, replace `colflow` with `bun run dev` (e.g. `bun run dev runs --limit 10`).
 
 ## Command Reference
 
@@ -150,6 +158,7 @@ bun run compile    # Compile to binary: dist/colflow (requires native deps suppo
   - `i18n/en.ts` — UI strings (single source of truth)
   - `theme.ts` — colour palette (Claude Code-inspired, hex codes adapt to terminal theme)
   - `launchClaude.ts` — opens new terminal window with `claude` CLI + error context
+  - `launchTerminal.ts` — generic helper for spawning a new terminal window with an arbitrary shell command (used by the DuckDB menu item)
 - `src/diff/` — pure run-diff logic (shared between CLI and TUI screen)
 - `src/parquet/` — hyparquet wrappers (schema inspection, row sampling, ZSTD support)
 - `src/project/` — pyproject.toml detection, COLFLOW_ASSET_ROOT resolution, workspace lookup via Dagster GraphQL

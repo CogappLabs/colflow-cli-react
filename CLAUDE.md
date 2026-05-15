@@ -15,6 +15,7 @@ Bun + TypeScript + Ink TUI for Dagster collection-flow pipelines. TS port of the
   - `theme.ts` — colour palette derived from the Claude Code binary. Use `colour.primary` for brand chrome, semantic ANSI colours (green/red/yellow) for status. **Avoid `dimColor` and `color="gray"` on data lines** — both fail WCAG against dark and light terminal themes. Reserve dim for footer hints, scroll counters, "(no rows)" placeholders. Use `bold` for labels.
   - `useViewport.ts` — `useViewportWindow(total, cursor, reserved)` keeps cursor visible in a scrollable list.
   - `launchClaude.ts` — opens new terminal window (matches `$TERM_PROGRAM`: iTerm, Terminal.app, falls back to Terminal) running the `claude` CLI with cwd set to project root and prompt seeded with run/asset/error context.
+  - `launchTerminal.ts` — generic version of the same osascript pattern: takes `{ cwd, command, label }` and spawns a new terminal window. Used by the DuckDB menu item (`colflow duckdb`).
 - `src/diff/index.ts` — pure run-diff helpers (`extractSteps`, `statusOf`, `durationStr`, `computeDiff`). Shared between `commands/diff.ts` and `tui/screens/RunsDiff.tsx`.
 - `src/parquet/index.ts` — hyparquet wrappers. `inspectParquet`, `sampleRows`, `parseWhere`, `collapseLeafPath`. ZSTD via `hyparquet-compressors`.
 - `src/project/` — `detect()` walks up from cwd for `pyproject.toml`. `detectFromEnv()` prefers `COLFLOW_ASSET_ROOT` if absolute, else cwd walk. `resolveAssetPath()` turns relative paths from Dagster `path` metadata into absolute. `workspace.ts` queries Dagster `workspaceOrError.locationEntries[0].displayMetadata` to auto-discover the project root from the running instance — no env var needed when Dagster is reachable.
@@ -42,7 +43,7 @@ Bun + TypeScript + Ink TUI for Dagster collection-flow pipelines. TS port of the
 
 `status`, `runs`, `run`, `logs`, `errors`, `tail`, `materialise`, `cancel`, `recheck`, `reload`, `stale`, `sensors`, `asset`, `graph`, `config`, `diff`, `inspect`, `sample`, `es-check`, `new-asset`, `start`, `debug`, `duckdb`. (23 commands.)
 
-TUI menu items: Runs, Assets, Jobs, Sensors, Reload Dagster.
+TUI menu items: Runs, Assets, Jobs, Sensors, Elasticsearch (gated on `ELASTICSEARCH_*`/`ELASTICO_*` env vars), DuckDB (spawns `colflow duckdb` in a new terminal), Reload Dagster.
 
 ## GraphQL schema notes
 
