@@ -12,6 +12,16 @@ brew install CogappLabs/tap/colflow
 
 This installs the standalone binary. No Bun or Node required. Replaces the Go-based `colflow` binary if you had it installed previously.
 
+Builds: macOS (arm64, x64), Linux (x64, arm64).
+
+#### macOS Gatekeeper
+
+Binaries are not yet code-signed. On first launch macOS may block with "cannot be opened because the developer cannot be verified". Clear the quarantine attribute:
+
+```sh
+xattr -d com.apple.quarantine $(which colflow)
+```
+
 ### From source
 
 ```sh

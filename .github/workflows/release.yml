@@ -34,6 +34,7 @@ jobs:
           build bun-darwin-arm64 colflow-darwin-arm64
           build bun-darwin-x64   colflow-darwin-amd64
           build bun-linux-x64    colflow-linux-amd64
+          build bun-linux-arm64  colflow-linux-arm64
 
       - name: Read sha256s
         id: hashes
@@ -41,6 +42,7 @@ jobs:
           echo "darwin_arm64_sha=$(cat dist/colflow-darwin-arm64.sha256)" >> "$GITHUB_OUTPUT"
           echo "darwin_amd64_sha=$(cat dist/colflow-darwin-amd64.sha256)" >> "$GITHUB_OUTPUT"
           echo "linux_amd64_sha=$(cat dist/colflow-linux-amd64.sha256)"   >> "$GITHUB_OUTPUT"
+          echo "linux_arm64_sha=$(cat dist/colflow-linux-arm64.sha256)"   >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
@@ -49,6 +51,7 @@ jobs:
             dist/colflow-darwin-arm64.tar.gz
             dist/colflow-darwin-amd64.tar.gz
             dist/colflow-linux-amd64.tar.gz
+            dist/colflow-linux-arm64.tar.gz
           generate_release_notes: true
 
       - name: Update Homebrew formula
@@ -58,6 +61,7 @@ jobs:
           DARWIN_ARM64_SHA: ${{ steps.hashes.outputs.darwin_arm64_sha }}
           DARWIN_AMD64_SHA: ${{ steps.hashes.outputs.darwin_amd64_sha }}
           LINUX_AMD64_SHA: ${{ steps.hashes.outputs.linux_amd64_sha }}
+          LINUX_ARM64_SHA: ${{ steps.hashes.outputs.linux_arm64_sha }}
         run: |
           VERSION="${TAG#v}"
           REPO="https://github.com/CogappLabs/colflow-cli-react/releases/download/${TAG}"
@@ -80,8 +84,13 @@ jobs:
             end
 
             on_linux do
-              url "${REPO}/colflow-linux-amd64.tar.gz"
-              sha256 "${LINUX_AMD64_SHA}"
+              if Hardware::CPU.arm?
+                url "${REPO}/colflow-linux-arm64.tar.gz"
+                sha256 "${LINUX_ARM64_SHA}"
+              else
+                url "${REPO}/colflow-linux-amd64.tar.gz"
+                sha256 "${LINUX_AMD64_SHA}"
+              end
             end
 
             def install
