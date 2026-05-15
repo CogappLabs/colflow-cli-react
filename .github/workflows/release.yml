@@ -9,22 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: build (${{ matrix.target }})
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      matrix:
-        include:
-          - target: bun-darwin-arm64
-            runner: macos-latest
-            artifact: colflow-darwin-arm64
-          - target: bun-darwin-x64
-            runner: macos-13
-            artifact: colflow-darwin-amd64
-          - target: bun-linux-x64
-            runner: ubuntu-latest
-            artifact: colflow-linux-amd64
-
+  release:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -33,72 +19,36 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Compile binary
+      - name: Build all targets
         run: |
-          bun build src/cli.tsx \
-            --compile \
-            --target=${{ matrix.target }} \
-            --outfile=colflow
+          set -euo pipefail
+          mkdir -p dist
+          build() {
+            local target="$1"
+            local artifact="$2"
+            bun build src/cli.tsx --compile --target="${target}" --outfile=colflow
+            tar -czvf "dist/${artifact}.tar.gz" colflow
+            sha256sum "dist/${artifact}.tar.gz" | awk '{print $1}' > "dist/${artifact}.sha256"
+            rm colflow
+          }
+          build bun-darwin-arm64 colflow-darwin-arm64
+          build bun-darwin-x64   colflow-darwin-amd64
+          build bun-linux-x64    colflow-linux-amd64
 
-      - name: Create tarball
-        run: tar -czvf ${{ matrix.artifact }}.tar.gz colflow
-
-      - name: Compute sha256
-        id: sha256
-        run: |
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
-            echo "hash=$(shasum -a 256 ${{ matrix.artifact }}.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
-          else
-            echo "hash=$(sha256sum ${{ matrix.artifact }}.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}.tar.gz
-          if-no-files-found: error
-
-      - name: Save sha256
-        run: echo "${{ steps.sha256.outputs.hash }}" > ${{ matrix.artifact }}.sha256
-
-      - name: Upload sha256 artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}-sha256
-          path: ${{ matrix.artifact }}.sha256
-          if-no-files-found: error
-
-  release:
-    name: release
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Collect tarballs and sha256s
+      - name: Read sha256s
         id: hashes
         run: |
-          DARWIN_ARM64_SHA=$(cat artifacts/colflow-darwin-arm64-sha256/colflow-darwin-arm64.sha256)
-          DARWIN_AMD64_SHA=$(cat artifacts/colflow-darwin-amd64-sha256/colflow-darwin-amd64.sha256)
-          LINUX_AMD64_SHA=$(cat artifacts/colflow-linux-amd64-sha256/colflow-linux-amd64.sha256)
-
-          echo "darwin_arm64_sha=${DARWIN_ARM64_SHA}" >> "$GITHUB_OUTPUT"
-          echo "darwin_amd64_sha=${DARWIN_AMD64_SHA}" >> "$GITHUB_OUTPUT"
-          echo "linux_amd64_sha=${LINUX_AMD64_SHA}" >> "$GITHUB_OUTPUT"
+          echo "darwin_arm64_sha=$(cat dist/colflow-darwin-arm64.sha256)" >> "$GITHUB_OUTPUT"
+          echo "darwin_amd64_sha=$(cat dist/colflow-darwin-amd64.sha256)" >> "$GITHUB_OUTPUT"
+          echo "linux_amd64_sha=$(cat dist/colflow-linux-amd64.sha256)"   >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/colflow-darwin-arm64/colflow-darwin-arm64.tar.gz
-            artifacts/colflow-darwin-amd64/colflow-darwin-amd64.tar.gz
-            artifacts/colflow-linux-amd64/colflow-linux-amd64.tar.gz
+            dist/colflow-darwin-arm64.tar.gz
+            dist/colflow-darwin-amd64.tar.gz
+            dist/colflow-linux-amd64.tar.gz
           generate_release_notes: true
 
       - name: Update Homebrew formula
