@@ -910,7 +910,11 @@ export async function fetchSensors(client: GraphQLClient): Promise<SensorState[]
 	return (data.sensorsOrError.results ?? []).map((r) => r.sensorState)
 }
 
-export async function launchAssetRun(client: GraphQLClient, assetNames: string[]): Promise<string> {
+export async function launchAssetRun(
+	client: GraphQLClient,
+	assetNames: string[],
+	runConfigData: Record<string, unknown> = {},
+): Promise<string> {
 	const repo = await getRepository(client)
 	const data = await client.request<{
 		launchRun: {
@@ -926,6 +930,7 @@ export async function launchAssetRun(client: GraphQLClient, assetNames: string[]
 				repositoryLocationName: repo.location.name,
 			},
 			stepKeys: assetNames,
+			runConfigData,
 		},
 	})
 	const r = data.launchRun
@@ -934,7 +939,11 @@ export async function launchAssetRun(client: GraphQLClient, assetNames: string[]
 	return r.run.runId
 }
 
-export async function launchRun(client: GraphQLClient, jobName: string): Promise<string> {
+export async function launchRun(
+	client: GraphQLClient,
+	jobName: string,
+	runConfigData: Record<string, unknown> = {},
+): Promise<string> {
 	const repo = await getRepository(client)
 	const data = await client.request<{
 		launchRun: {
@@ -951,7 +960,7 @@ export async function launchRun(client: GraphQLClient, jobName: string): Promise
 				repositoryName: repo.name,
 				repositoryLocationName: repo.location.name,
 			},
-			runConfigData: {},
+			runConfigData,
 		},
 	})
 	const r = data.launchRun

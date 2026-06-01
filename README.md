@@ -83,6 +83,9 @@ colflow status                    # Latest run summary
 colflow runs --limit 10           # List recent runs
 colflow logs <id>                 # Print run logs
 colflow materialise asset1 asset2 # Launch a run
+colflow launch <job>              # Launch a job
+colflow launch <job> --config-json '{"resources":{"r":{"config":{"k":true}}}}'  # with run config
+colflow launch <job> --config run.yaml  # run config from a JSON/YAML file
 colflow inspect output/data.parquet  # Inspect Parquet schema
 colflow es-check                  # Elasticsearch cluster + indices summary
 colflow duckdb                    # Mount parquets and open duckdb --ui
@@ -100,7 +103,8 @@ When developing from source, replace `colflow` with `bun run dev` (e.g. `bun run
 | `logs <id>` | Print run logs (--step, --level) |
 | `errors <id>` | Failures for a run |
 | `tail <id>` | Stream run events (--interval) |
-| `materialise <name>...` | Launch a run for assets |
+| `materialise <name>...` | Launch a run for assets (--config, --config-json) |
+| `launch <job>` | Launch a run for a job (--config, --config-json) |
 | `cancel <id>` | Cancel a run |
 | `recheck <a:check>...` | Re-run asset checks |
 | `reload` | Reload Dagster code location |
@@ -125,6 +129,8 @@ When developing from source, replace `colflow` with `bun run dev` (e.g. `bun run
 | `--url <url>` | Dagster URL (env: DAGSTER_URL, default: http://localhost:3000) |
 | `--auth <token>` | Dagster Cloud token (env: DAGSTER_AUTH) |
 | `--json` | JSON output where supported |
+| `--config <path>` | Run config file, JSON or YAML, for `launch` / `materialise`. Repeatable; files shallow-merge left to right. |
+| `--config-json <json>` | Inline JSON run config for `launch` / `materialise`. Merged last, wins over `--config`. |
 
 ## Environment Variables
 

@@ -70,6 +70,8 @@ const cli = meow(
 	  --status <s>    Filter (runs)
 	  --step <key>    Filter (logs)
 	  --level <l>     Filter (logs)
+	  --config <path>      Run config file, JSON or YAML (launch, materialise; repeatable, merged left to right)
+	  --config-json <json> Inline JSON run config (launch, materialise; merged last, wins over --config)
 	  --help          Show this help
 `,
 	{
@@ -99,6 +101,8 @@ const cli = meow(
 			run1: { type: 'string' },
 			run2: { type: 'string' },
 			detach: { type: 'boolean', default: false },
+			config: { type: 'string', isMultiple: true },
+			configJson: { type: 'string' },
 		},
 	},
 )
@@ -153,10 +157,24 @@ async function main() {
 			await runErrors({ url, auth, json, id: needArg('id') })
 			return
 		case 'materialise':
-			await runMaterialise({ url, auth, json, assets: rest })
+			await runMaterialise({
+				url,
+				auth,
+				json,
+				assets: rest,
+				config: cli.flags.config,
+				configJson: cli.flags.configJson,
+			})
 			return
 		case 'launch':
-			await runLaunch({ url, auth, json, job: cli.flags.job ?? rest[0] ?? '' })
+			await runLaunch({
+				url,
+				auth,
+				json,
+				job: cli.flags.job ?? rest[0] ?? '',
+				config: cli.flags.config,
+				configJson: cli.flags.configJson,
+			})
 			return
 		case 'cancel':
 			await runCancel({ url, auth, json, id: needArg('id') })
