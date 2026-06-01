@@ -41,9 +41,11 @@ Bun + TypeScript + Ink TUI for Dagster collection-flow pipelines. TS port of the
 
 ## Available commands
 
-`status`, `runs`, `run`, `logs`, `errors`, `tail`, `materialise`, `cancel`, `recheck`, `reload`, `stale`, `sensors`, `asset`, `graph`, `config`, `diff`, `inspect`, `sample`, `es-check`, `new-asset`, `start`, `debug`, `duckdb`. (23 commands.)
+`status`, `runs`, `run`, `logs`, `errors`, `tail`, `materialise`, `launch`, `cancel`, `recheck`, `reload`, `stale`, `sensors`, `asset`, `graph`, `config`, `diff`, `inspect`, `sample`, `es-check`, `new-asset`, `start`, `debug`, `duckdb`. (24 commands.)
 
 TUI menu items: Runs, Assets, Jobs, Sensors, Elasticsearch (gated on `ELASTICSEARCH_*`/`ELASTICO_*` env vars), DuckDB (spawns `colflow duckdb` in a new terminal), Reload Dagster.
+
+`launch` and `materialise` accept run config like `dg`: `--config <path>` (JSON or YAML, repeatable, shallow-merged left to right) and `--config-json <inline>` (merged last, wins). Both resolve via `resolveRunConfig` in `src/commands/_runconfig.ts` and flow into the `runConfigData` field of `ExecutionParams` in `launchRun` / `launchAssetRun`. Without either flag the config is `{}`, so prior default-config behaviour is unchanged. Use it to set resource config, e.g. `colflow launch image_qc_pipeline --config-json '{"resources":{"colour_target_qc":{"config":{"use_vision":true}}}}'`.
 
 ## GraphQL schema notes
 
