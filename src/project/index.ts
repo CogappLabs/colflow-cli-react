@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { config } from 'dotenv'
+import { fetchAssetMaterializationPath, makeClient } from '../client/index.ts'
+import { isS3Uri, mountPathToS3Uri } from '../s3/index.ts'
 
 export interface Project {
 	root: string
@@ -88,4 +90,41 @@ export function resolveParquetPath(arg: string, project: Project | null): string
 	]
 	for (const c of candidates) if (existsSync(c)) return c
 	return candidates[1]!
+}
+
+/** COLFLOW_MOUNT_ROOT / COLFLOW_S3_BUCKET, the mount-path to S3 rewrite config. */
+export function s3Config(): { mountRoot?: string; bucket?: string } {
+	return {
+		mountRoot: process.env.COLFLOW_MOUNT_ROOT,
+		bucket: process.env.COLFLOW_S3_BUCKET,
+	}
+}
+
+/**
+ * Resolve an inspect/sample argument to something a reader can open, preferring
+ * S3 when this is a remote deployment.
+ *
+ * - An `s3://` argument is used as-is.
+ * - A bare asset name with S3 config set is looked up against Dagster: its
+ *   latest materialisation path is rewritten from the mount root to the bucket.
+ * - Otherwise it falls back to the local `resolveParquetPath`.
+ */
+export async function resolveParquetSource(
+	arg: string,
+	project: Project | null,
+	dagster: { url: string; auth?: string },
+): Promise<string> {
+	if (isS3Uri(arg)) return arg
+
+	const { mountRoot, bucket } = s3Config()
+	const looksLikePath = arg.includes('/') || arg.endsWith('.parquet') || existsSync(arg)
+	if (bucket && !looksLikePath) {
+		const client = makeClient({ url: dagster.url, auth: dagster.auth })
+		const reported = await fetchAssetMaterializationPath(client, arg.split('/'))
+		if (reported) {
+			const s3 = mountPathToS3Uri(reported, mountRoot, bucket)
+			if (s3) return s3
+		}
+	}
+	return resolveParquetPath(arg, project)
 }

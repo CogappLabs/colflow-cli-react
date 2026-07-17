@@ -1,6 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { inspectParquet, type SchemaNode } from '../parquet/index.ts'
-import { detect, resolveParquetPath } from '../project/index.ts'
+import { detect, resolveParquetSource } from '../project/index.ts'
+import { isS3Uri } from '../s3/index.ts'
 
 interface Opts {
 	url: string
@@ -65,7 +66,7 @@ function colour(text: string, name: keyof typeof colourCodes): string {
 	return `${colourCodes[name]}${text}${reset}`
 }
 
-export async function runInspect({ json, path }: Opts): Promise<void> {
+export async function runInspect({ url, auth, json, path }: Opts): Promise<void> {
 	let resolved = path
 	if (!resolved) {
 		const picked = pickParquet()
@@ -75,8 +76,8 @@ export async function runInspect({ json, path }: Opts): Promise<void> {
 		resolved = picked
 	}
 	const project = detect()
-	const fullPath = resolveParquetPath(resolved, project)
-	if (!existsSync(fullPath)) {
+	const fullPath = await resolveParquetSource(resolved, project, { url, auth })
+	if (!isS3Uri(fullPath) && !existsSync(fullPath)) {
 		process.stderr.write(`file not found: ${fullPath}\n`)
 		process.exit(1)
 	}

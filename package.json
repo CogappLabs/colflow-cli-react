@@ -21,6 +21,7 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1089.0",
     "@inkjs/ui": "^2.0.0",
     "@tqman/ink-table": "^0.0.0-development",
     "dotenv": "^17.4.2",

@@ -18,6 +18,42 @@ export function makeClient({ url, auth, basicAuth }: ClientOptions): GraphQLClie
 	return new GraphQLClient(endpoint, { headers })
 }
 
+const ASSET_MAT_PATH_QUERY = `
+	query AssetMatPath($assetKey: AssetKeyInput!) {
+		assetsOrError(assetKeys: [$assetKey]) {
+			... on AssetConnection {
+				nodes {
+					key { path }
+					assetMaterializations(limit: 1) {
+						metadataEntries {
+							label
+							... on PathMetadataEntry { path }
+						}
+					}
+				}
+			}
+		}
+	}
+`
+
+/** Latest materialisation `path` metadata for an asset, or null if none reported. */
+export async function fetchAssetMaterializationPath(
+	client: GraphQLClient,
+	assetPath: string[],
+): Promise<string | null> {
+	const data = await client.request<{
+		assetsOrError: {
+			nodes?: {
+				assetMaterializations: { metadataEntries: { label: string; path?: string }[] }[]
+			}[]
+		}
+	}>(ASSET_MAT_PATH_QUERY, { assetKey: { path: assetPath } })
+	const node = data.assetsOrError.nodes?.[0]
+	const entries = node?.assetMaterializations?.[0]?.metadataEntries ?? []
+	const entry = entries.find((e) => e.label === 'path' && e.path != null)
+	return entry?.path ?? null
+}
+
 export interface Run {
 	runId: string
 	jobName: string

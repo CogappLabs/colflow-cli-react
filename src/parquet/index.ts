@@ -1,5 +1,6 @@
 import { statSync } from 'node:fs'
 import {
+	type AsyncBuffer,
 	asyncBufferFromFile,
 	type FileMetaData,
 	parquetMetadataAsync,
@@ -7,6 +8,18 @@ import {
 	parquetSchema,
 } from 'hyparquet'
 import { compressors } from 'hyparquet-compressors'
+import { asyncBufferFromS3, isS3Uri } from '../s3/index.ts'
+
+/** Open a parquet source as an AsyncBuffer, from S3 for `s3://` paths else local fs. */
+async function openBuffer(path: string): Promise<{ buffer: AsyncBuffer; size: number }> {
+	if (isS3Uri(path)) {
+		const buffer = await asyncBufferFromS3(path)
+		return { buffer, size: buffer.byteLength }
+	}
+	const size = statSync(path).size
+	const buffer = await asyncBufferFromFile(path)
+	return { buffer, size }
+}
 
 export interface SchemaNode {
 	name: string
@@ -33,12 +46,11 @@ export interface ColumnInfo {
 }
 
 export async function readMetadata(path: string): Promise<{
-	buffer: Awaited<ReturnType<typeof asyncBufferFromFile>>
+	buffer: AsyncBuffer
 	meta: FileMetaData
 	size: number
 }> {
-	const size = statSync(path).size
-	const buffer = await asyncBufferFromFile(path)
+	const { buffer, size } = await openBuffer(path)
 	const meta = await parquetMetadataAsync(buffer)
 	return { buffer, meta, size }
 }
@@ -162,7 +174,7 @@ export async function sampleRows(
 	filters: { path: string[]; value: string }[],
 	maxScan: number,
 ): Promise<Record<string, unknown>[]> {
-	const buffer = await asyncBufferFromFile(path)
+	const { buffer } = await openBuffer(path)
 	if (filters.length === 0) {
 		return parquetReadObjects({ file: buffer, rowEnd: limit, compressors })
 	}

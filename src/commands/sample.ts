@@ -1,8 +1,11 @@
 import { existsSync } from 'node:fs'
 import { parseWhere, sampleRows } from '../parquet/index.ts'
-import { detect, resolveParquetPath } from '../project/index.ts'
+import { detect, resolveParquetSource } from '../project/index.ts'
+import { isS3Uri } from '../s3/index.ts'
 
 interface Opts {
+	url: string
+	auth?: string
 	json: boolean
 	path: string
 	rows: number
@@ -22,10 +25,18 @@ function formatValue(v: unknown): string {
 	return String(v)
 }
 
-export async function runSample({ json, path, rows, where, maxScan }: Opts): Promise<void> {
+export async function runSample({
+	url,
+	auth,
+	json,
+	path,
+	rows,
+	where,
+	maxScan,
+}: Opts): Promise<void> {
 	const project = detect()
-	const fullPath = resolveParquetPath(path, project)
-	if (!existsSync(fullPath)) {
+	const fullPath = await resolveParquetSource(path, project, { url, auth })
+	if (!isS3Uri(fullPath) && !existsSync(fullPath)) {
 		process.stderr.write(`file not found: ${fullPath}\n`)
 		process.exit(1)
 	}

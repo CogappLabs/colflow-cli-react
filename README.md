@@ -114,8 +114,8 @@ When developing from source, replace `colflow` with `bun run dev` (e.g. `bun run
 | `graph` | Asset dependency graph |
 | `config` | Run config schema (--job) |
 | `diff <r1> <r2>` | Compare two runs (--run1, --run2) |
-| `inspect <parquet>` | Parquet schema and null counts |
-| `sample <parquet>` | Sample rows (--rows, --where, --max-scan) |
+| `inspect <parquet>` | Parquet schema and null counts (local or S3, see Remote parquet) |
+| `sample <parquet>` | Sample rows (--rows, --where, --max-scan; local or S3) |
 | `es-check [index]` | Elasticsearch health (--api-key, --insecure, --indices) |
 | `new-asset <name>` | Scaffold a Dagster asset (--group, --upstream, --title, --test, --dry-run) |
 | `start` | `uv run dg dev` (foreground) |
@@ -129,6 +129,8 @@ When developing from source, replace `colflow` with `bun run dev` (e.g. `bun run
 | `--url <url>` | Dagster URL (env: DAGSTER_URL, default: http://localhost:3000) |
 | `--auth <token>` | Dagster Cloud token (env: DAGSTER_AUTH) |
 | `--basic-auth <user:pass>` | HTTP Basic credentials for a Dagster instance behind a Basic-auth proxy, e.g. a Traefik `basicauth` middleware (env: DAGSTER_BASIC_AUTH) |
+| `--mount-root <path>` | Deploy mount prefix rewritten to S3 for remote parquet reads (env: COLFLOW_MOUNT_ROOT) |
+| `--s3-bucket <name>` | Assets bucket holding the remote parquet (env: COLFLOW_S3_BUCKET) |
 | `--json` | JSON output where supported |
 | `--config <path>` | Run config file, JSON or YAML, for `launch` / `materialise`. Repeatable; files shallow-merge left to right. |
 | `--config-json <json>` | Inline JSON run config for `launch` / `materialise`. Merged last, wins over `--config`. |
@@ -138,11 +140,36 @@ When developing from source, replace `colflow` with `bun run dev` (e.g. `bun run
 - `DAGSTER_URL` — Dagster instance URL (default: http://localhost:3000)
 - `DAGSTER_AUTH` — Dagster Cloud authentication token
 - `DAGSTER_BASIC_AUTH` — HTTP Basic credentials (`user:pass`) for an instance behind a Basic-auth proxy
-- `COLFLOW_ASSET_ROOT` — Root path for asset detection (overrides via --asset-root)
+- `COLFLOW_ASSET_ROOT` — Root path for asset detection (overrides via --asset-root); may be an `s3://bucket/prefix` URI for `duckdb`
+- `COLFLOW_MOUNT_ROOT` — Deploy mount prefix (e.g. `/mnt/s3files`) rewritten to S3 for `inspect` / `sample`
+- `COLFLOW_S3_BUCKET` — Assets bucket (e.g. `famsf-cf-assets`) the mount prefix maps to
 - `ELASTICSEARCH_URL` (or `ELASTICO_URL`) — Elasticsearch endpoint for es-check
 - `ELASTICSEARCH_API_KEY` (or `ELASTICO_API_KEY`) — Elasticsearch API key for es-check
 
 Set these in `.env` at your project root, or pass via flags.
+
+## Remote parquet (S3)
+
+A deployed Dagster syncs its asset outputs to an S3 bucket via a mounted path
+(e.g. it writes `/mnt/s3files/output/editorial_raw.parquet`, which syncs to
+`s3://famsf-cf-assets/output/editorial_raw.parquet`). `inspect`, `sample`, and
+`duckdb` can read that remote parquet.
+
+Set `COLFLOW_MOUNT_ROOT` and `COLFLOW_S3_BUCKET` (or `--mount-root` /
+`--s3-bucket`). Then:
+
+- `colflow inspect <asset>` / `colflow sample <asset>` — for a bare asset name,
+  the CLI asks Dagster for the asset's latest materialisation path, rewrites the
+  mount prefix to `s3://<bucket>/...`, and reads it over ranged S3 GETs (only the
+  parquet metadata and needed row groups, not the whole object). You can also
+  pass an `s3://...` URI directly.
+- `colflow duckdb` — with `COLFLOW_ASSET_ROOT` set to an `s3://bucket/prefix`
+  URI, it lists the prefix and mounts each object as a DuckDB view reading from
+  S3 via `httpfs`.
+
+Credentials come from the AWS default chain (your `aws sso` session /
+`AWS_PROFILE`); no AWS keys are configured by the CLI. Run `aws sso login`
+first if your session has expired.
 
 ## Development
 

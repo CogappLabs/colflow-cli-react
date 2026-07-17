@@ -65,6 +65,8 @@ const cli = meow(
 	Flags
 	  --url <url>     Dagster URL (env: DAGSTER_URL)
 	  --auth <token>  Dagster Cloud token (env: DAGSTER_AUTH)
+	  --mount-root <path>  Deploy mount prefix to rewrite to S3 (env: COLFLOW_MOUNT_ROOT)
+	  --s3-bucket <name>   Assets bucket for remote parquet reads (env: COLFLOW_S3_BUCKET)
 	  --json          JSON output where supported
 	  --limit <n>     Max items (runs)
 	  --status <s>    Filter (runs)
@@ -98,6 +100,8 @@ const cli = meow(
 			test: { type: 'boolean', default: true },
 			dryRun: { type: 'boolean', default: false },
 			assetRoot: { type: 'string' },
+			mountRoot: { type: 'string' },
+			s3Bucket: { type: 'string' },
 			job: { type: 'string' },
 			run1: { type: 'string' },
 			run2: { type: 'string' },
@@ -113,6 +117,11 @@ const auth = cli.flags.auth ?? process.env.DAGSTER_AUTH
 const basicAuth = cli.flags.basicAuth ?? process.env.DAGSTER_BASIC_AUTH
 const json = cli.flags.json
 if (cli.flags.assetRoot) process.env.COLFLOW_ASSET_ROOT = cli.flags.assetRoot
+// Mount-root / bucket resolve a Dagster-reported mount path to an S3 URI so
+// inspect/sample/duckdb can read a remote deployment's parquet. Set into env so
+// the resolver reaches them without threading through every command.
+if (cli.flags.mountRoot) process.env.COLFLOW_MOUNT_ROOT = cli.flags.mountRoot
+if (cli.flags.s3Bucket) process.env.COLFLOW_S3_BUCKET = cli.flags.s3Bucket
 // makeClient reads DAGSTER_BASIC_AUTH as a fallback, so setting it here reaches
 // every command without threading basicAuth through each one.
 if (basicAuth) process.env.DAGSTER_BASIC_AUTH = basicAuth
@@ -259,6 +268,8 @@ async function main() {
 			return
 		case 'sample':
 			await runSample({
+				url,
+				auth,
 				json,
 				path: needArg('parquet'),
 				rows: cli.flags.rows ?? 5,

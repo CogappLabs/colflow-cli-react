@@ -1,7 +1,9 @@
 import { spawn } from 'node:child_process'
 import { existsSync, readdirSync, statSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { assetRoot, detectFromEnv, isLocalAssetRoot } from '../project/index.ts'
+import { isS3Uri, listS3Parquets } from '../s3/index.ts'
 
 interface Opts {
 	detach: boolean
@@ -21,33 +23,57 @@ export function findParquets(dir: string): string[] {
 }
 
 export function viewName(path: string, root: string): string {
-	const rel = path.replace(`${root}/`, '').replace(/\.parquet$/, '')
+	// Strip the scheme+bucket from both s3:// paths and roots first, so the root
+	// prefix removal works the same for local and remote.
+	const strip = (s: string) => s.replace(/^s3:\/\/[^/]+\//, '')
+	const rel = strip(path)
+		.replace(`${strip(root)}/`, '')
+		.replace(/\.parquet$/, '')
 	return rel.replace(/\//g, '__')
 }
 
 export async function runDuckdb({ detach }: Opts): Promise<void> {
-	if (!isLocalAssetRoot()) {
-		process.stderr.write('COLFLOW_ASSET_ROOT is a remote URI; duckdb mount needs a local path.\n')
-		process.exit(1)
-	}
 	const project = detectFromEnv()
 	const root = assetRoot(project)
-	if (!existsSync(root)) {
-		process.stderr.write(`Asset root does not exist: ${root}\n`)
-		process.exit(1)
-	}
-	const parquets = findParquets(root)
-	if (parquets.length === 0) {
-		process.stderr.write(`No parquet files under ${root}\n`)
-		process.exit(1)
+	const remote = !isLocalAssetRoot() && isS3Uri(root)
+
+	let parquets: string[]
+	let dbPath: string
+	let credsSql = ''
+	if (remote) {
+		parquets = await listS3Parquets(root)
+		if (parquets.length === 0) {
+			process.stderr.write(`No parquet files under ${root}\n`)
+			process.exit(1)
+		}
+		// httpfs reads s3://; the S3 secret uses the AWS default credential chain
+		// (env, shared config, SSO), matching the SDK-backed inspect/sample path.
+		// The secret is persistent so the separate `duckdb --ui` process reloads
+		// it from ~/.duckdb rather than opening the views without credentials.
+		dbPath = join(tmpdir(), 'colflow-s3-mount.db')
+		credsSql =
+			'INSTALL httpfs; LOAD httpfs;\nCREATE OR REPLACE PERSISTENT SECRET colflow_s3 (TYPE s3, PROVIDER credential_chain);\n'
+	} else {
+		if (!existsSync(root)) {
+			process.stderr.write(`Asset root does not exist: ${root}\n`)
+			process.exit(1)
+		}
+		parquets = findParquets(root)
+		if (parquets.length === 0) {
+			process.stderr.write(`No parquet files under ${root}\n`)
+			process.exit(1)
+		}
+		dbPath = join(root, 'mount.db')
 	}
 
-	const dbPath = join(root, 'mount.db')
-	const sql = parquets
-		.map(
-			(p) => `CREATE OR REPLACE VIEW "${viewName(p, root)}" AS SELECT * FROM read_parquet('${p}');`,
-		)
-		.join('\n')
+	const sql =
+		credsSql +
+		parquets
+			.map(
+				(p) =>
+					`CREATE OR REPLACE VIEW "${viewName(p, root)}" AS SELECT * FROM read_parquet('${p}');`,
+			)
+			.join('\n')
 
 	process.stdout.write(`Mounting ${parquets.length} parquet file(s) into ${dbPath}\n`)
 
