@@ -128,6 +128,7 @@ When developing from source, replace `colflow` with `bun run dev` (e.g. `bun run
 |------|---------|
 | `--url <url>` | Dagster URL (env: DAGSTER_URL, default: http://localhost:3000) |
 | `--auth <token>` | Dagster Cloud token (env: DAGSTER_AUTH) |
+| `--basic-auth <user:pass>` | HTTP Basic credentials for a Dagster instance behind a Basic-auth proxy, e.g. a Traefik `basicauth` middleware (env: DAGSTER_BASIC_AUTH) |
 | `--json` | JSON output where supported |
 | `--config <path>` | Run config file, JSON or YAML, for `launch` / `materialise`. Repeatable; files shallow-merge left to right. |
 | `--config-json <json>` | Inline JSON run config for `launch` / `materialise`. Merged last, wins over `--config`. |
@@ -136,6 +137,7 @@ When developing from source, replace `colflow` with `bun run dev` (e.g. `bun run
 
 - `DAGSTER_URL` — Dagster instance URL (default: http://localhost:3000)
 - `DAGSTER_AUTH` — Dagster Cloud authentication token
+- `DAGSTER_BASIC_AUTH` — HTTP Basic credentials (`user:pass`) for an instance behind a Basic-auth proxy
 - `COLFLOW_ASSET_ROOT` — Root path for asset detection (overrides via --asset-root)
 - `ELASTICSEARCH_URL` (or `ELASTICO_URL`) — Elasticsearch endpoint for es-check
 - `ELASTICSEARCH_API_KEY` (or `ELASTICO_API_KEY`) — Elasticsearch API key for es-check

@@ -79,6 +79,7 @@ const cli = meow(
 		flags: {
 			url: { type: 'string' },
 			auth: { type: 'string' },
+			basicAuth: { type: 'string' },
 			json: { type: 'boolean', default: false },
 			limit: { type: 'number' },
 			status: { type: 'string' },
@@ -109,8 +110,12 @@ const cli = meow(
 
 const url = cli.flags.url ?? process.env.DAGSTER_URL ?? 'http://localhost:3000'
 const auth = cli.flags.auth ?? process.env.DAGSTER_AUTH
+const basicAuth = cli.flags.basicAuth ?? process.env.DAGSTER_BASIC_AUTH
 const json = cli.flags.json
 if (cli.flags.assetRoot) process.env.COLFLOW_ASSET_ROOT = cli.flags.assetRoot
+// makeClient reads DAGSTER_BASIC_AUTH as a fallback, so setting it here reaches
+// every command without threading basicAuth through each one.
+if (basicAuth) process.env.DAGSTER_BASIC_AUTH = basicAuth
 
 const [cmd, ...rest] = cli.input
 

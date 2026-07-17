@@ -3,12 +3,18 @@ import { GraphQLClient } from 'graphql-request'
 export interface ClientOptions {
 	url: string
 	auth?: string
+	/** HTTP Basic credentials as "user:password" (e.g. an instance behind a Traefik basicauth middleware). */
+	basicAuth?: string
 }
 
-export function makeClient({ url, auth }: ClientOptions): GraphQLClient {
+export function makeClient({ url, auth, basicAuth }: ClientOptions): GraphQLClient {
 	const endpoint = `${url.replace(/\/$/, '')}/graphql`
 	const headers: Record<string, string> = {}
 	if (auth) headers['Dagster-Cloud-Api-Token'] = auth
+	// Falls back to the env so callers that don't thread basicAuth through their
+	// options (most commands) still authenticate against a Basic-protected box.
+	const basic = basicAuth ?? process.env.DAGSTER_BASIC_AUTH
+	if (basic) headers.Authorization = `Basic ${btoa(basic)}`
 	return new GraphQLClient(endpoint, { headers })
 }
 
