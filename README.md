@@ -151,12 +151,24 @@ Set these in `.env` at your project root, or pass via flags.
 ## Remote parquet (S3)
 
 A deployed Dagster syncs its asset outputs to an S3 bucket via a mounted path
-(e.g. it writes `/mnt/s3files/output/editorial_raw.parquet`, which syncs to
-`s3://famsf-cf-assets/output/editorial_raw.parquet`). `inspect`, `sample`, and
+(e.g. it writes `/mnt/s3files/output/my_asset.parquet`, which syncs to
+`s3://my-assets-bucket/output/my_asset.parquet`). `inspect`, `sample`, and
 `duckdb` can read that remote parquet.
 
 Set `COLFLOW_MOUNT_ROOT` and `COLFLOW_S3_BUCKET` (or `--mount-root` /
-`--s3-bucket`). Then:
+`--s3-bucket`). If the instance sits behind a Basic-auth proxy, also pass
+`--basic-auth <user:pass>` (or `DAGSTER_BASIC_AUTH`) so the Dagster lookup
+authenticates:
+
+```sh
+colflow inspect my_asset \
+  --url https://dagster.example.com \
+  --basic-auth user:pass \
+  --mount-root /mnt/s3files \
+  --s3-bucket my-assets-bucket
+```
+
+Then:
 
 - `colflow inspect <asset>` / `colflow sample <asset>` — for a bare asset name,
   the CLI asks Dagster for the asset's latest materialisation path, rewrites the
