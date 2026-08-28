@@ -41,7 +41,7 @@ Bun + TypeScript + Ink TUI for Dagster collection-flow pipelines. TS port of the
 
 ## Available commands
 
-`status`, `runs`, `run`, `logs`, `errors`, `tail`, `materialise`, `launch`, `cancel`, `recheck`, `reload`, `stale`, `sensors`, `asset`, `graph`, `config`, `diff`, `inspect`, `sample`, `es-check`, `new-asset`, `start`, `debug`, `duckdb`. (24 commands.)
+`status`, `runs`, `run`, `logs`, `errors`, `tail`, `materialise`, `launch`, `cancel`, `recheck`, `reload`, `stale`, `sensors`, `schedules`, `ticks`, `doctor`, `asset`, `graph`, `config`, `diff`, `inspect`, `sample`, `es-check`, `new-asset`, `start`, `debug`, `duckdb`. (27 commands.)
 
 TUI menu items: Runs, Assets, Jobs, Sensors, Elasticsearch (gated on `ELASTICSEARCH_*`/`ELASTICO_*` env vars), DuckDB (spawns `colflow duckdb` in a new terminal), Reload Dagster.
 
@@ -50,7 +50,9 @@ TUI menu items: Runs, Assets, Jobs, Sensors, Elasticsearch (gated on `ELASTICSEA
 ## GraphQL schema notes
 
 - `metadataEntries` is a union — use typed inline fragments (`IntMetadataEntry`, `TextMetadataEntry`, `PathMetadataEntry`, `JsonMetadataEntry`, `BoolMetadataEntry`, `FloatMetadataEntry`, `MarkdownMetadataEntry`, `UrlMetadataEntry`, `TableSchemaMetadataEntry`, `TableMetadataEntry`).
-- `sensorsOrError` requires a `repositorySelector`.
+- `sensorsOrError` and `schedulesOrError` require a `repositorySelector`.
+- `instigationStateOrError` covers sensors and schedules alike, keyed by bare
+  name in an `InstigationSelector` — there is no separate schedule-tick query.
 - `workspaceOrError.locationEntries[].displayMetadata` exposes `working_directory`, `module_name`, `host`, `socket` — **not** env vars (security boundary). Use `working_directory` to auto-derive project root.
 - Asset checks live in their own steps — match by `assetKey`, not `stepKey`. See `fetchRunAssetDetail` for the pattern.
 - Dagster timestamps mix seconds and ms strings; use `tsToSeconds` from `src/format/index.ts` to normalise.

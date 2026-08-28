@@ -1073,3 +1073,180 @@ export async function fetchRunErrors(client: GraphQLClient, id: string): Promise
 		(e): e is StepFailure => !!e.stepKey,
 	)
 }
+
+export interface ScheduleState {
+	name: string
+	status: string
+	cronSchedule: string
+	nextTick: { timestamp: number | string } | null
+	ticks: {
+		status: string
+		timestamp: number | string
+		error: { message: string } | null
+	}[]
+}
+
+const SCHEDULES_QUERY = `
+	query Schedules($repoSelector: RepositorySelector!) {
+		schedulesOrError(repositorySelector: $repoSelector) {
+			... on Schedules {
+				results {
+					name
+					cronSchedule
+					scheduleState {
+						name status
+						nextTick { timestamp }
+						ticks(limit: 3) { status timestamp error { message } }
+					}
+				}
+			}
+			... on PythonError { message }
+		}
+	}
+`
+
+export async function fetchSchedules(client: GraphQLClient): Promise<ScheduleState[]> {
+	const repo = await getRepository(client)
+	const data = await client.request<{
+		schedulesOrError: {
+			results?: {
+				name: string
+				cronSchedule: string
+				scheduleState: Omit<ScheduleState, 'cronSchedule'>
+			}[]
+			message?: string
+		}
+	}>(SCHEDULES_QUERY, {
+		repoSelector: {
+			repositoryName: repo.name,
+			repositoryLocationName: repo.location.name,
+		},
+	})
+	if (data.schedulesOrError.message) throw new Error(data.schedulesOrError.message)
+	return (data.schedulesOrError.results ?? []).map((r) => ({
+		...r.scheduleState,
+		cronSchedule: r.cronSchedule,
+	}))
+}
+
+export interface Tick {
+	status: string
+	timestamp: number | string
+	runIds: string[]
+	error: { message: string } | null
+	skipReason: string | null
+}
+
+const TICKS_QUERY = `
+	query Ticks($selector: InstigationSelector!, $limit: Int!) {
+		instigationStateOrError(instigationSelector: $selector) {
+			... on InstigationState {
+				name
+				instigationType
+				status
+				ticks(limit: $limit) {
+					status timestamp runIds skipReason
+					error { message }
+				}
+			}
+			... on InstigationStateNotFoundError { message }
+			... on PythonError { message }
+		}
+	}
+`
+
+/** Tick history for a sensor or schedule. Dagster keys both by name alone. */
+export async function fetchTicks(
+	client: GraphQLClient,
+	name: string,
+	limit = 20,
+): Promise<{ name: string; type: string; status: string; ticks: Tick[] }> {
+	const repo = await getRepository(client)
+	const data = await client.request<{
+		instigationStateOrError: {
+			name?: string
+			instigationType?: string
+			status?: string
+			ticks?: Tick[]
+			message?: string
+		}
+	}>(TICKS_QUERY, {
+		selector: {
+			repositoryName: repo.name,
+			repositoryLocationName: repo.location.name,
+			name,
+		},
+		limit,
+	})
+	const s = data.instigationStateOrError
+	if (s.message) throw new Error(s.message)
+	return {
+		name: s.name ?? name,
+		type: s.instigationType ?? 'UNKNOWN',
+		status: s.status ?? 'UNKNOWN',
+		ticks: s.ticks ?? [],
+	}
+}
+
+export interface DaemonStatus {
+	daemonType: string
+	healthy: boolean
+	required: boolean
+	lastHeartbeatTime: number | null
+	lastHeartbeatErrors: { message: string }[]
+}
+
+export interface LocationStatus {
+	name: string
+	loadStatus: string
+	error: { message: string } | null
+}
+
+const INSTANCE_QUERY = `
+	query InstanceHealth {
+		instance {
+			daemonHealth {
+				allDaemonStatuses {
+					daemonType healthy required lastHeartbeatTime
+					lastHeartbeatErrors { message }
+				}
+			}
+		}
+		workspaceOrError {
+			... on Workspace {
+				locationEntries {
+					name
+					loadStatus
+					locationOrLoadError { ... on PythonError { message } }
+				}
+			}
+			... on PythonError { message }
+		}
+	}
+`
+
+export async function fetchInstanceHealth(client: GraphQLClient): Promise<{
+	daemons: DaemonStatus[]
+	locations: LocationStatus[]
+}> {
+	const data = await client.request<{
+		instance: { daemonHealth: { allDaemonStatuses: DaemonStatus[] } }
+		workspaceOrError: {
+			locationEntries?: {
+				name: string
+				loadStatus: string
+				locationOrLoadError: { message?: string } | null
+			}[]
+			message?: string
+		}
+	}>(INSTANCE_QUERY)
+	if (data.workspaceOrError.message) throw new Error(data.workspaceOrError.message)
+	return {
+		daemons: data.instance.daemonHealth.allDaemonStatuses,
+		locations: (data.workspaceOrError.locationEntries ?? []).map((e) => ({
+			name: e.name,
+			loadStatus: e.loadStatus,
+			error: e.locationOrLoadError?.message ? { message: e.locationOrLoadError.message } : null,
+		})),
+	}
+}

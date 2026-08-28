@@ -110,6 +110,9 @@ When developing from source, replace `colflow` with `bun run dev` (e.g. `bun run
 | `reload` | Reload Dagster code location |
 | `stale` | List stale assets |
 | `sensors` | List sensors with status |
+| `schedules` | List schedules with status, cron, and recent ticks |
+| `ticks <name>` | Tick history for a sensor or schedule (--limit) |
+| `doctor` | Instance health: daemon status, code locations, failing ticks |
 | `asset <key>` | Full asset detail |
 | `graph` | Asset dependency graph |
 | `config` | Run config schema (--job) |

@@ -6,6 +6,7 @@ import { runCancel } from './commands/cancel.ts'
 import { runConfig } from './commands/config.ts'
 import { runDevServer } from './commands/devserver.ts'
 import { runDiff } from './commands/diff.ts'
+import { runDoctor } from './commands/doctor.ts'
 import { runDuckdb } from './commands/duckdb.ts'
 import { runErrors } from './commands/errors.ts'
 import { runEsCheck } from './commands/escheck.ts'
@@ -20,10 +21,12 @@ import { runReload } from './commands/reload.ts'
 import { runRun } from './commands/run.ts'
 import { runRuns } from './commands/runs.ts'
 import { runSample } from './commands/sample.ts'
+import { runSchedules } from './commands/schedules.ts'
 import { runSensors } from './commands/sensors.ts'
 import { runStale } from './commands/stale.ts'
 import { runStatus } from './commands/status.ts'
 import { runTail } from './commands/tail.ts'
+import { runTicks } from './commands/ticks.ts'
 import { loadDotEnv } from './project/index.ts'
 import { App } from './tui/App.tsx'
 
@@ -50,6 +53,9 @@ const cli = meow(
 	  reload                  Reload Dagster code location
 	  stale                   List stale assets
 	  sensors                 List sensors with status + recent ticks
+	  schedules               List schedules with status + recent ticks
+	  ticks <name>            Tick history for a sensor or schedule
+	  doctor                  Instance health: daemons, locations, failing ticks
 	  asset <key>             Show full asset detail
 	  graph                   Print asset dependency graph (grouped + indented)
 	  config [--job <name>]   Show run config schema for a job
@@ -204,6 +210,15 @@ async function main() {
 			return
 		case 'sensors':
 			await runSensors({ url, auth, json })
+			return
+		case 'schedules':
+			await runSchedules({ url, auth, json })
+			return
+		case 'ticks':
+			await runTicks({ url, auth, json, name: needArg('name'), limit: cli.flags.limit })
+			return
+		case 'doctor':
+			await runDoctor({ url, auth, json })
 			return
 		case 'asset':
 			await runAsset({ url, auth, json, key: needArg('asset-key') })
