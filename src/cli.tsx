@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { withFullScreen } from 'fullscreen-ink'
 import meow from 'meow'
+import { splitBasicAuth } from './client/url.ts'
 import { runAsset } from './commands/asset.ts'
 import { runCancel } from './commands/cancel.ts'
 import { runConfig } from './commands/config.ts'
@@ -71,6 +72,8 @@ const cli = meow(
 	Flags
 	  --url <url>     Dagster URL (env: DAGSTER_URL)
 	  --auth <token>  Dagster Cloud token (env: DAGSTER_AUTH)
+	  --basic-auth <user:pass>  HTTP Basic credentials (env: DAGSTER_BASIC_AUTH);
+	                            also read from userinfo in --url
 	  --mount-root <path>  Deploy mount prefix to rewrite to S3 (env: COLFLOW_MOUNT_ROOT)
 	  --s3-bucket <name>   Assets bucket for remote parquet reads (env: COLFLOW_S3_BUCKET)
 	  --json          JSON output where supported
@@ -118,9 +121,12 @@ const cli = meow(
 	},
 )
 
-const url = cli.flags.url ?? process.env.DAGSTER_URL ?? 'http://localhost:3000'
+// Credentials may arrive inside the URL (https://user:pass@host); strip them
+// out so the endpoint stays clean and they reach the Basic header instead.
+const rawUrl = cli.flags.url ?? process.env.DAGSTER_URL ?? 'http://localhost:3000'
+const { url, basicAuth: urlBasicAuth } = splitBasicAuth(rawUrl)
 const auth = cli.flags.auth ?? process.env.DAGSTER_AUTH
-const basicAuth = cli.flags.basicAuth ?? process.env.DAGSTER_BASIC_AUTH
+const basicAuth = cli.flags.basicAuth ?? process.env.DAGSTER_BASIC_AUTH ?? urlBasicAuth
 const json = cli.flags.json
 if (cli.flags.assetRoot) process.env.COLFLOW_ASSET_ROOT = cli.flags.assetRoot
 // Mount-root / bucket resolve a Dagster-reported mount path to an S3 URI so
