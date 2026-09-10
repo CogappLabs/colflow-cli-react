@@ -8,6 +8,7 @@ interface Opts {
 	assets: string[]
 	config?: string[]
 	configJson?: string
+	opConfig?: string[]
 }
 
 export async function runMaterialise({
@@ -17,12 +18,13 @@ export async function runMaterialise({
 	assets,
 	config,
 	configJson,
+	opConfig,
 }: Opts): Promise<void> {
 	if (assets.length === 0) {
 		process.stderr.write('Provide one or more asset names.\n')
 		process.exit(2)
 	}
-	const runConfig = resolveRunConfig({ config, configJson })
+	const runConfig = resolveRunConfig({ config, configJson, opConfig })
 	const client = makeClient({ url, auth })
 	const runId = await launchAssetRun(client, assets, runConfig)
 	if (json) {

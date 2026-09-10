@@ -8,14 +8,23 @@ interface Opts {
 	job: string
 	config?: string[]
 	configJson?: string
+	opConfig?: string[]
 }
 
-export async function runLaunch({ url, auth, json, job, config, configJson }: Opts): Promise<void> {
+export async function runLaunch({
+	url,
+	auth,
+	json,
+	job,
+	config,
+	configJson,
+	opConfig,
+}: Opts): Promise<void> {
 	if (!job) {
 		process.stderr.write('Provide a job name.\n')
 		process.exit(2)
 	}
-	const runConfig = resolveRunConfig({ config, configJson })
+	const runConfig = resolveRunConfig({ config, configJson, opConfig })
 	const client = makeClient({ url, auth })
 	const runId = await launchRun(client, job, runConfig)
 	if (json) {

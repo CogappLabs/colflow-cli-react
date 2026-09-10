@@ -83,6 +83,9 @@ const cli = meow(
 	  --level <l>     Filter (logs)
 	  --config <path>      Run config file, JSON or YAML (launch, materialise; repeatable, merged left to right)
 	  --config-json <json> Inline JSON run config (launch, materialise; merged last, wins over --config)
+	  --op-config <op>:<key>=<value>
+	                        Set one run config field (launch, materialise; repeatable, wins over
+	                        --config/--config-json). Value parses as JSON where possible, else string.
 	  --help          Show this help
 `,
 	{
@@ -117,6 +120,7 @@ const cli = meow(
 			detach: { type: 'boolean', default: false },
 			config: { type: 'string', isMultiple: true },
 			configJson: { type: 'string' },
+			opConfig: { type: 'string', isMultiple: true },
 		},
 	},
 )
@@ -190,6 +194,7 @@ async function main() {
 				assets: rest,
 				config: cli.flags.config,
 				configJson: cli.flags.configJson,
+				opConfig: cli.flags.opConfig,
 			})
 			return
 		case 'launch':
@@ -200,6 +205,7 @@ async function main() {
 				job: cli.flags.job ?? rest[0] ?? '',
 				config: cli.flags.config,
 				configJson: cli.flags.configJson,
+				opConfig: cli.flags.opConfig,
 			})
 			return
 		case 'cancel':

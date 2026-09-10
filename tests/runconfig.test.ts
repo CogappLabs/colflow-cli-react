@@ -61,4 +61,88 @@ describe('resolveRunConfig', () => {
 		const p = write('arr.json', '[1,2,3]')
 		expect(() => resolveRunConfig({ config: [p] })).toThrow(/must contain a mapping/)
 	})
+
+	test('op-config sets a typed field', () => {
+		const cfg = resolveRunConfig({ opConfig: ['tiler_dispatch:limit=5000'] })
+		expect(cfg).toEqual({ ops: { tiler_dispatch: { config: { limit: 5000 } } } })
+	})
+
+	test('op-config parses booleans, null, and arrays as JSON', () => {
+		expect(resolveRunConfig({ opConfig: ['a:x=true'] })).toEqual({
+			ops: { a: { config: { x: true } } },
+		})
+		expect(resolveRunConfig({ opConfig: ['a:x=null'] })).toEqual({
+			ops: { a: { config: { x: null } } },
+		})
+		expect(resolveRunConfig({ opConfig: ['a:x=[1,2]'] })).toEqual({
+			ops: { a: { config: { x: [1, 2] } } },
+		})
+	})
+
+	test('op-config falls back to string for non-JSON values', () => {
+		const cfg = resolveRunConfig({ opConfig: ['a:name=hello world'] })
+		expect(cfg).toEqual({ ops: { a: { config: { name: 'hello world' } } } })
+	})
+
+	test('op-config supports dotted keys for nested fields', () => {
+		const cfg = resolveRunConfig({ opConfig: ['a:batch.size=10'] })
+		expect(cfg).toEqual({ ops: { a: { config: { batch: { size: 10 } } } } })
+	})
+
+	test('multiple op-config flags merge without clobbering siblings', () => {
+		const cfg = resolveRunConfig({
+			opConfig: ['tiler_dispatch:limit=5000', 'tiler_dispatch:batch_pause_seconds=0'],
+		})
+		expect(cfg).toEqual({
+			ops: { tiler_dispatch: { config: { limit: 5000, batch_pause_seconds: 0 } } },
+		})
+	})
+
+	test('op-config wins over --config without dropping sibling fields', () => {
+		const p = write(
+			'base2.json',
+			'{"ops":{"tiler_dispatch":{"config":{"limit":1,"batch_size":500}}}}',
+		)
+		const cfg = resolveRunConfig({
+			config: [p],
+			opConfig: ['tiler_dispatch:limit=5000'],
+		})
+		expect(cfg).toEqual({
+			ops: { tiler_dispatch: { config: { limit: 5000, batch_size: 500 } } },
+		})
+	})
+
+	test('op-config deep-merges into a different op set by --config-json', () => {
+		const cfg = resolveRunConfig({
+			configJson: '{"ops":{"other_op":{"config":{"x":1}}}}',
+			opConfig: ['tiler_dispatch:limit=5000'],
+		})
+		expect(cfg).toEqual({
+			ops: {
+				other_op: { config: { x: 1 } },
+				tiler_dispatch: { config: { limit: 5000 } },
+			},
+		})
+	})
+
+	test('op-config missing colon throws', () => {
+		expect(() => resolveRunConfig({ opConfig: ['limit=5000'] })).toThrow(
+			/expected <op>:<key>=<value>/,
+		)
+	})
+
+	test('op-config missing equals throws', () => {
+		expect(() => resolveRunConfig({ opConfig: ['tiler_dispatch:limit'] })).toThrow(
+			/expected <op>:<key>=<value>/,
+		)
+	})
+
+	test('op-config empty op or key throws', () => {
+		expect(() => resolveRunConfig({ opConfig: [':limit=5000'] })).toThrow(
+			/expected <op>:<key>=<value>/,
+		)
+		expect(() => resolveRunConfig({ opConfig: ['tiler_dispatch:=5000'] })).toThrow(
+			/expected <op>:<key>=<value>/,
+		)
+	})
 })

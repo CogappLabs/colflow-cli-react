@@ -5,17 +5,17 @@ import { parse as parseYaml } from 'yaml'
 export interface RunConfigFlags {
 	config?: string[]
 	configJson?: string
+	opConfig?: string[]
 }
 
 /**
  * Resolve Dagster run config from CLI flags, matching `dg launch` semantics.
  *
- * `--config <path>` may be passed multiple times; files are parsed (JSON or
- * YAML by extension) and shallow-merged left to right, so later files win.
- * `--config-json <inline>` is parsed as JSON and merged last (highest
- * precedence), for the common scripting case where a file is overkill.
- *
- * Returns `{}` when no config flags are present, preserving prior behaviour.
+ * Layers merge in precedence order: `--config` file(s) (shallow, left to
+ * right), then `--config-json`, then `--op-config` (deep-merged into
+ * `ops.<op>.config.<key>` so one field never clobbers siblings already set
+ * by an earlier layer). Returns `{}` with no flags, preserving prior
+ * behaviour.
  */
 export function resolveRunConfig(flags: RunConfigFlags): Record<string, unknown> {
 	const paths = flags.config ?? []
@@ -43,7 +43,63 @@ export function resolveRunConfig(flags: RunConfigFlags): Record<string, unknown>
 		merged = { ...merged, ...parsed }
 	}
 
+	for (const pair of flags.opConfig ?? []) {
+		merged = deepMerge(merged, parseOpConfig(pair))
+	}
+
 	return merged
+}
+
+/**
+ * Parse one `<op>:<key>=<value>` pair into `{ops: {<op>: {config: {<key>: <value>}}}}`.
+ *
+ * `<key>` may be dotted (`batch.size`) to reach a nested config field.
+ * `<value>` parses as JSON when possible (so `5000`, `true`, `null`, `[1,2]`
+ * type correctly), falling back to the raw string otherwise.
+ */
+function parseOpConfig(pair: string): Record<string, unknown> {
+	const colonIdx = pair.indexOf(':')
+	const eqIdx = pair.indexOf('=')
+	if (colonIdx < 0 || eqIdx < 0 || eqIdx < colonIdx) {
+		throw new Error(`--op-config: invalid "${pair}", expected <op>:<key>=<value>`)
+	}
+	const op = pair.slice(0, colonIdx)
+	const key = pair.slice(colonIdx + 1, eqIdx)
+	const rawValue = pair.slice(eqIdx + 1)
+	if (!op || !key) {
+		throw new Error(`--op-config: invalid "${pair}", expected <op>:<key>=<value>`)
+	}
+
+	let value: unknown
+	try {
+		value = JSON.parse(rawValue)
+	} catch {
+		value = rawValue
+	}
+
+	const keyPath = key.split('.')
+	let leaf: Record<string, unknown> = {}
+	const config: Record<string, unknown> = leaf
+	for (let i = 0; i < keyPath.length - 1; i++) {
+		const next: Record<string, unknown> = {}
+		leaf[keyPath[i]] = next
+		leaf = next
+	}
+	leaf[keyPath[keyPath.length - 1]] = value
+
+	return { ops: { [op]: { config } } }
+}
+
+function deepMerge(
+	a: Record<string, unknown>,
+	b: Record<string, unknown>,
+): Record<string, unknown> {
+	const out: Record<string, unknown> = { ...a }
+	for (const [key, bVal] of Object.entries(b)) {
+		const aVal = out[key]
+		out[key] = isObject(aVal) && isObject(bVal) ? deepMerge(aVal, bVal) : bVal
+	}
+	return out
 }
 
 function parseConfigFile(path: string, raw: string): Record<string, unknown> {

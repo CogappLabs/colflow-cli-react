@@ -86,6 +86,7 @@ colflow materialise asset1 asset2 # Launch a run
 colflow launch <job>              # Launch a job
 colflow launch <job> --config-json '{"resources":{"r":{"config":{"k":true}}}}'  # with run config
 colflow launch <job> --config run.yaml  # run config from a JSON/YAML file
+colflow materialise tiler_dispatch --op-config tiler_dispatch:limit=5000  # set one op config field
 colflow inspect output/data.parquet  # Inspect Parquet schema
 colflow es-check                  # Elasticsearch cluster + indices summary
 colflow duckdb                    # Mount parquets and open duckdb --ui
@@ -103,8 +104,8 @@ When developing from source, replace `colflow` with `bun run dev` (e.g. `bun run
 | `logs <id>` | Print run logs (--step, --level) |
 | `errors <id>` | Failures for a run |
 | `tail <id>` | Stream run events (--interval) |
-| `materialise <name>...` | Launch a run for assets (--config, --config-json) |
-| `launch <job>` | Launch a run for a job (--config, --config-json) |
+| `materialise <name>...` | Launch a run for assets (--config, --config-json, --op-config) |
+| `launch <job>` | Launch a run for a job (--config, --config-json, --op-config) |
 | `cancel <id>` | Cancel a run |
 | `recheck <a:check>...` | Re-run asset checks |
 | `reload` | Reload Dagster code location |
@@ -136,7 +137,8 @@ When developing from source, replace `colflow` with `bun run dev` (e.g. `bun run
 | `--s3-bucket <name>` | Assets bucket holding the remote parquet (env: COLFLOW_S3_BUCKET) |
 | `--json` | JSON output where supported |
 | `--config <path>` | Run config file, JSON or YAML, for `launch` / `materialise`. Repeatable; files shallow-merge left to right. |
-| `--config-json <json>` | Inline JSON run config for `launch` / `materialise`. Merged last, wins over `--config`. |
+| `--config-json <json>` | Inline JSON run config for `launch` / `materialise`. Merged next, wins over `--config`. |
+| `--op-config <op>:<key>=<value>` | Set one run config field for `launch` / `materialise`, e.g. `tiler_dispatch:limit=5000`. Repeatable; merged last (deep, so it never drops sibling fields). Value parses as JSON where possible, else string. Dotted `<key>` reaches a nested field. |
 
 ## Environment Variables
 
