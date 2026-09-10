@@ -738,6 +738,30 @@ const LAUNCH_RUN_MUTATION = `
 	}
 `
 
+interface LaunchRunResult {
+	__typename: string
+	run?: { runId: string }
+	message?: string
+	invalidStepKey?: string
+	errors?: { message: string; reason: string; path: string[] }[]
+}
+
+// Both launchRun and launchAssetRun hit the same mutation and error shapes
+// (RunConfigValidationInvalid, InvalidStepError), so they share one reader.
+function readLaunchRunResult(r: LaunchRunResult): string {
+	if (r.errors && r.errors.length > 0) {
+		const lines = r.errors.map((e) => {
+			const p = e.path.length > 0 ? ` at ${e.path.join('.')}` : ''
+			return `[${e.reason}]${p}: ${e.message}`
+		})
+		throw new Error(`Run config invalid:\n  ${lines.join('\n  ')}`)
+	}
+	if (r.invalidStepKey) throw new Error(`Invalid step key: ${r.invalidStepKey}`)
+	if (r.message) throw new Error(r.message)
+	if (!r.run) throw new Error(`launchRun: unexpected response (${r.__typename})`)
+	return r.run.runId
+}
+
 const TERMINATE_RUN_MUTATION = `
 	mutation Terminate($runId: String!) {
 		terminateRun(runId: $runId) {
@@ -958,13 +982,7 @@ export async function launchAssetRun(
 	runConfigData: Record<string, unknown> = {},
 ): Promise<string> {
 	const repo = await getRepository(client)
-	const data = await client.request<{
-		launchRun: {
-			__typename: string
-			run?: { runId: string }
-			message?: string
-		}
-	}>(LAUNCH_RUN_MUTATION, {
+	const data = await client.request<{ launchRun: LaunchRunResult }>(LAUNCH_RUN_MUTATION, {
 		params: {
 			selector: {
 				pipelineName: '__ASSET_JOB',
@@ -975,10 +993,7 @@ export async function launchAssetRun(
 			runConfigData,
 		},
 	})
-	const r = data.launchRun
-	if (r.message) throw new Error(r.message)
-	if (!r.run) throw new Error(`launchAssetRun: unexpected response (${r.__typename})`)
-	return r.run.runId
+	return readLaunchRunResult(data.launchRun)
 }
 
 export async function launchRun(
@@ -987,15 +1002,7 @@ export async function launchRun(
 	runConfigData: Record<string, unknown> = {},
 ): Promise<string> {
 	const repo = await getRepository(client)
-	const data = await client.request<{
-		launchRun: {
-			__typename: string
-			run?: { runId: string }
-			message?: string
-			invalidStepKey?: string
-			errors?: { message: string; reason: string; path: string[] }[]
-		}
-	}>(LAUNCH_RUN_MUTATION, {
+	const data = await client.request<{ launchRun: LaunchRunResult }>(LAUNCH_RUN_MUTATION, {
 		params: {
 			selector: {
 				jobName,
@@ -1005,18 +1012,7 @@ export async function launchRun(
 			runConfigData,
 		},
 	})
-	const r = data.launchRun
-	if (r.errors && r.errors.length > 0) {
-		const lines = r.errors.map((e) => {
-			const p = e.path.length > 0 ? ` at ${e.path.join('.')}` : ''
-			return `[${e.reason}]${p}: ${e.message}`
-		})
-		throw new Error(`Run config invalid:\n  ${lines.join('\n  ')}`)
-	}
-	if (r.invalidStepKey) throw new Error(`Invalid step key: ${r.invalidStepKey}`)
-	if (r.message) throw new Error(r.message)
-	if (!r.run) throw new Error(`launchRun: unexpected response (${r.__typename})`)
-	return r.run.runId
+	return readLaunchRunResult(data.launchRun)
 }
 
 export interface AssetGraphNode {
