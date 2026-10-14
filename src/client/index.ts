@@ -1066,6 +1066,15 @@ const RUN_ERRORS_QUERY = `
 							stepKey
 							error { message stack causes { message } }
 						}
+						... on AssetCheckEvaluationEvent {
+							evaluation {
+								checkName
+								assetKey { path }
+								success
+								severity
+								metadataEntries { ${METADATA_FIELDS} }
+							}
+						}
 					}
 				}
 			}
@@ -1075,17 +1084,28 @@ const RUN_ERRORS_QUERY = `
 	}
 `
 
-export async function fetchRunErrors(client: GraphQLClient, id: string): Promise<StepFailure[]> {
+export interface RunErrors {
+	failures: StepFailure[]
+	failedChecks: AssetCheckEval[]
+}
+
+export async function fetchRunErrors(client: GraphQLClient, id: string): Promise<RunErrors> {
 	const data = await client.request<{
 		runOrError: {
-			eventConnection?: { events: Array<Partial<StepFailure>> }
+			eventConnection?: { events: Array<Partial<StepFailure> & Pick<RawMatEvent, 'evaluation'>> }
 			message?: string
 		}
 	}>(RUN_ERRORS_QUERY, { id })
 	if (data.runOrError.message) throw new Error(data.runOrError.message)
-	return (data.runOrError.eventConnection?.events ?? []).filter(
-		(e): e is StepFailure => !!e.stepKey,
-	)
+	const events = data.runOrError.eventConnection?.events ?? []
+	return {
+		failures: events.filter((e): e is StepFailure => !!e.stepKey),
+		failedChecks: events.flatMap((e) =>
+			e.evaluation && !e.evaluation.success
+				? [{ ...e.evaluation, assetKey: e.evaluation.assetKey.path }]
+				: [],
+		),
+	}
 }
 
 export interface CheckExecution {
