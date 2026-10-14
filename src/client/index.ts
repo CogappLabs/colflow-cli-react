@@ -1038,6 +1038,24 @@ export async function fetchAssetGraph(client: GraphQLClient): Promise<AssetGraph
 	return data.assetNodes
 }
 
+const METADATA_FIELDS = `
+	label description __typename
+	... on IntMetadataEntry { intValue }
+	... on FloatMetadataEntry { floatValue }
+	... on TextMetadataEntry { text }
+	... on PathMetadataEntry { path }
+	... on JsonMetadataEntry { jsonString }
+	... on BoolMetadataEntry { boolValue }
+	... on UrlMetadataEntry { url }
+	... on MarkdownMetadataEntry { mdStr }
+	... on TableMetadataEntry {
+		table {
+			records
+			schema { columns { name type } }
+		}
+	}
+`
+
 const RUN_ERRORS_QUERY = `
 	query RunErrors($id: ID!) {
 		runOrError(runId: $id) {
@@ -1067,6 +1085,96 @@ export async function fetchRunErrors(client: GraphQLClient, id: string): Promise
 	if (data.runOrError.message) throw new Error(data.runOrError.message)
 	return (data.runOrError.eventConnection?.events ?? []).filter(
 		(e): e is StepFailure => !!e.stepKey,
+	)
+}
+
+export interface CheckExecution {
+	runId: string
+	status: string
+	timestamp: number | string | null
+	success: boolean | null
+	severity: string | null
+	metadataEntries: MetadataEntry[]
+}
+
+export interface AssetCheckHistory {
+	name: string
+	blocking: boolean
+	executions: CheckExecution[]
+}
+
+const ASSET_CHECKS_QUERY = `
+	query AssetChecks($assetKey: AssetKeyInput!) {
+		assetNodeOrError(assetKey: $assetKey) {
+			__typename
+			... on AssetNode {
+				assetChecksOrError {
+					__typename
+					... on AssetChecks { checks { name blocking } }
+				}
+			}
+		}
+	}
+`
+
+const CHECK_EXECUTIONS_QUERY = `
+	query CheckExecutions($assetKey: AssetKeyInput!, $checkName: String!, $limit: Int!) {
+		assetCheckExecutions(assetKey: $assetKey, checkName: $checkName, limit: $limit) {
+			runId
+			status
+			timestamp
+			evaluation {
+				success
+				severity
+				metadataEntries { ${METADATA_FIELDS} }
+			}
+		}
+	}
+`
+
+/** Returns null when the asset does not exist. */
+export async function fetchAssetChecks(
+	client: GraphQLClient,
+	path: string[],
+	limit: number,
+	only?: string,
+): Promise<AssetCheckHistory[] | null> {
+	const data = await client.request<{
+		assetNodeOrError: {
+			__typename: string
+			assetChecksOrError?: { checks?: { name: string; blocking: boolean }[] }
+		}
+	}>(ASSET_CHECKS_QUERY, { assetKey: { path } })
+	if (data.assetNodeOrError.__typename !== 'AssetNode') return null
+	const checks = (data.assetNodeOrError.assetChecksOrError?.checks ?? []).filter(
+		(c) => !only || c.name === only,
+	)
+	return Promise.all(
+		checks.map(async (c) => {
+			const res = await client.request<{
+				assetCheckExecutions: {
+					runId: string
+					status: string
+					timestamp: number | string | null
+					evaluation: {
+						success: boolean
+						severity: string
+						metadataEntries: MetadataEntry[]
+					} | null
+				}[]
+			}>(CHECK_EXECUTIONS_QUERY, { assetKey: { path }, checkName: c.name, limit })
+			return {
+				...c,
+				executions: res.assetCheckExecutions.map((e) => ({
+					runId: e.runId,
+					status: e.status,
+					timestamp: e.timestamp,
+					success: e.evaluation?.success ?? null,
+					severity: e.evaluation?.severity ?? null,
+					metadataEntries: e.evaluation?.metadataEntries ?? [],
+				})),
+			}
+		}),
 	)
 }
 

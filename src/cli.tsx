@@ -4,6 +4,7 @@ import meow from 'meow'
 import { splitBasicAuth } from './client/url.ts'
 import { runAsset } from './commands/asset.ts'
 import { runCancel } from './commands/cancel.ts'
+import { runChecks } from './commands/checks.ts'
 import { runConfig } from './commands/config.ts'
 import { runDevServer } from './commands/devserver.ts'
 import { runDiff } from './commands/diff.ts'
@@ -45,7 +46,8 @@ const cli = meow(
 	  runs                    List recent runs
 	  run <id>                Show run detail
 	  logs <id>               Print run logs
-	  errors <id>             Failures for a run
+	  errors <id>             Failures for a run, plus metadata of failed checks
+	  checks <asset>          Asset checks with latest result + metadata (--check, --limit)
 	  tail <id>               Stream run events
 	  materialise <name>...   Launch a run for one or more assets
 	  launch <job>            Launch a run for a job
@@ -77,8 +79,9 @@ const cli = meow(
 	  --mount-root <path>  Deploy mount prefix to rewrite to S3 (env: COLFLOW_MOUNT_ROOT)
 	  --s3-bucket <name>   Assets bucket for remote parquet reads (env: COLFLOW_S3_BUCKET)
 	  --json          JSON output where supported
-	  --limit <n>     Max items (runs)
+	  --limit <n>     Max items (runs, checks)
 	  --status <s>    Filter (runs)
+	  --check <name>  Filter (checks)
 	  --step <key>    Filter (logs)
 	  --level <l>     Filter (logs)
 	  --config <path>      Run config file, JSON or YAML (launch, materialise; repeatable, merged left to right)
@@ -96,6 +99,7 @@ const cli = meow(
 			basicAuth: { type: 'string' },
 			json: { type: 'boolean', default: false },
 			limit: { type: 'number' },
+			check: { type: 'string' },
 			status: { type: 'string' },
 			step: { type: 'string' },
 			level: { type: 'string' },
@@ -181,6 +185,16 @@ async function main() {
 				id: needArg('id'),
 				step: cli.flags.step,
 				level: cli.flags.level,
+			})
+			return
+		case 'checks':
+			await runChecks({
+				url,
+				auth,
+				json,
+				key: needArg('asset'),
+				check: cli.flags.check,
+				limit: cli.flags.limit,
 			})
 			return
 		case 'errors':

@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { formatTimestamp, statusColour, timeAgo, tsToSeconds } from '../src/format/index.ts'
+import type { MetadataEntry } from '../src/client/index.ts'
+import {
+	formatMetadataEntry,
+	formatTimestamp,
+	statusColour,
+	timeAgo,
+	tsToSeconds,
+} from '../src/format/index.ts'
 
 describe('tsToSeconds', () => {
 	test('ms timestamp (>1e12) is converted to seconds', () => {
@@ -100,5 +107,49 @@ describe('statusColour', () => {
 
 	test('unknown status → gray', () => {
 		expect(statusColour('WHATEVER')).toBe('gray')
+	})
+})
+
+describe('formatMetadataEntry', () => {
+	const entry = (e: Partial<MetadataEntry>): MetadataEntry => ({
+		label: 'x',
+		description: null,
+		__typename: 'TextMetadataEntry',
+		...e,
+	})
+
+	test('scalar entries render on one line', () => {
+		expect(formatMetadataEntry(entry({ __typename: 'IntMetadataEntry', intValue: 0 }))).toBe('x: 0')
+		expect(formatMetadataEntry(entry({ __typename: 'BoolMetadataEntry', boolValue: false }))).toBe(
+			'x: false',
+		)
+		expect(formatMetadataEntry(entry({ text: 'hi' }))).toBe('x: hi')
+	})
+
+	test('multi-line text is indented under the label', () => {
+		expect(formatMetadataEntry(entry({ text: 'a\nb' }), '  ')).toBe('  x:\n    a\n    b')
+	})
+
+	test('json is pretty-printed, invalid json passes through', () => {
+		const j = entry({ __typename: 'JsonMetadataEntry', jsonString: '{"a":1}' })
+		expect(formatMetadataEntry(j)).toBe('x:\n  {\n    "a": 1\n  }')
+		expect(formatMetadataEntry({ ...j, jsonString: 'nope' })).toBe('x:\n  nope')
+	})
+
+	test('table lists columns then records', () => {
+		const t = entry({
+			__typename: 'TableMetadataEntry',
+			table: {
+				schema: { columns: [{ name: 'a', type: 'string' }] } as never,
+				records: ['{"a":"1"}'],
+			},
+		})
+		expect(formatMetadataEntry(t)).toBe('x:\n  columns: a\n  {"a":"1"}')
+	})
+
+	test('unknown types fall back to label and typename', () => {
+		expect(formatMetadataEntry(entry({ __typename: 'PipelineRunMetadataEntry' }))).toBe(
+			'x: (PipelineRunMetadataEntry)',
+		)
 	})
 })

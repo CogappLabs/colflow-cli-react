@@ -102,7 +102,8 @@ When developing from source, replace `colflow` with `bun run dev` (e.g. `bun run
 | `runs` | List recent runs (--limit, --status) |
 | `run <id>` | Show run detail |
 | `logs <id>` | Print run logs (--step, --level) |
-| `errors <id>` | Failures for a run |
+| `errors <id>` | Failures for a run, plus metadata of any failed asset checks |
+| `checks <asset>` | Asset checks with latest result and metadata (--check, --limit for history) |
 | `tail <id>` | Stream run events (--interval) |
 | `materialise <name>...` | Launch a run for assets (--config, --config-json, --op-config) |
 | `launch <job>` | Launch a run for a job (--config, --config-json, --op-config) |

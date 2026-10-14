@@ -41,7 +41,7 @@ Bun + TypeScript + Ink TUI for Dagster collection-flow pipelines. TS port of the
 
 ## Available commands
 
-`status`, `runs`, `run`, `logs`, `errors`, `tail`, `materialise`, `launch`, `cancel`, `recheck`, `reload`, `stale`, `sensors`, `schedules`, `ticks`, `doctor`, `asset`, `graph`, `config`, `diff`, `inspect`, `sample`, `es-check`, `new-asset`, `start`, `debug`, `duckdb`. (27 commands.)
+`status`, `runs`, `run`, `logs`, `errors`, `checks`, `tail`, `materialise`, `launch`, `cancel`, `recheck`, `reload`, `stale`, `sensors`, `schedules`, `ticks`, `doctor`, `asset`, `graph`, `config`, `diff`, `inspect`, `sample`, `es-check`, `new-asset`, `start`, `debug`, `duckdb`. (28 commands.)
 
 TUI menu items: Runs, Assets, Jobs, Sensors, Elasticsearch (gated on `ELASTICSEARCH_*`/`ELASTICO_*` env vars), DuckDB (spawns `colflow duckdb` in a new terminal), Reload Dagster.
 
