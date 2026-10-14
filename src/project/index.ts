@@ -39,8 +39,8 @@ export function detect(start: string = cwd()): Project | null {
 export function loadDotEnv(root?: string): void {
 	const r = root ?? detect()?.root
 	if (!r) return
-	config({ path: join(r, '.env') })
-	config({ path: join(r, '.env.local'), override: true })
+	config({ path: join(r, '.env'), quiet: true })
+	config({ path: join(r, '.env.local'), override: true, quiet: true })
 }
 
 /**
