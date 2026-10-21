@@ -638,8 +638,13 @@ const ASSET_DETAIL_QUERY = `
 					runId
 					metadataEntries {
 						label description __typename
-						... on PathMetadataEntry { path }
+						... on IntMetadataEntry { intValue }
+						... on FloatMetadataEntry { floatValue }
 						... on TextMetadataEntry { text }
+						... on PathMetadataEntry { path }
+						... on JsonMetadataEntry { jsonString }
+						... on BoolMetadataEntry { boolValue }
+						... on UrlMetadataEntry { url }
 					}
 				}
 				staleCauses { key { path } reason category }

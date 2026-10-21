@@ -15,6 +15,7 @@ function metaValue(e: MetadataEntry): string {
 	if (e.floatValue != null) return String(e.floatValue)
 	if (e.boolValue != null) return String(e.boolValue)
 	if (e.jsonString != null) return e.jsonString
+	if (e.url != null) return e.url
 	return e.__typename
 }
 
