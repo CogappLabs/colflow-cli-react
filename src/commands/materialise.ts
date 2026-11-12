@@ -26,7 +26,11 @@ export async function runMaterialise({
 	}
 	const runConfig = resolveRunConfig({ config, configJson, opConfig })
 	const client = makeClient({ url, auth })
-	const runId = await launchAssetRun(client, assets, runConfig)
+	const runId = await launchAssetRun(
+		client,
+		assets.map((a) => [a]),
+		runConfig,
+	)
 	if (json) {
 		process.stdout.write(`${JSON.stringify({ runId, assets }, null, 2)}\n`)
 		return

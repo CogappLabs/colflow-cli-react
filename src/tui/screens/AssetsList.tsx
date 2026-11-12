@@ -80,7 +80,10 @@ export function AssetsList({ url, auth, onSelect, onBack, onLaunched }: Props) {
 				const names = phase.assets
 				setPhase({ kind: 'launching' })
 				const client = makeClient({ url, auth })
-				launchAssetRun(client, names)
+				launchAssetRun(
+					client,
+					names.map((n) => [n]),
+				)
 					.then((runId) => {
 						setSelected(new Set())
 						setPhase({ kind: 'idle' })

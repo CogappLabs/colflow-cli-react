@@ -983,18 +983,18 @@ export async function fetchSensors(client: GraphQLClient): Promise<SensorState[]
 
 export async function launchAssetRun(
 	client: GraphQLClient,
-	assetNames: string[],
+	assetKeys: string[][],
 	runConfigData: Record<string, unknown> = {},
 ): Promise<string> {
 	const repo = await getRepository(client)
 	const data = await client.request<{ launchRun: LaunchRunResult }>(LAUNCH_RUN_MUTATION, {
 		params: {
 			selector: {
-				pipelineName: '__ASSET_JOB',
+				jobName: '__ASSET_JOB',
 				repositoryName: repo.name,
 				repositoryLocationName: repo.location.name,
+				assetSelection: assetKeys.map((path) => ({ path })),
 			},
-			stepKeys: assetNames,
 			runConfigData,
 		},
 	})

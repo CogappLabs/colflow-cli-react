@@ -387,7 +387,7 @@ export function AssetView({
 			if (input === 'y' || key.return) {
 				setPhase({ kind: 'launching' })
 				const client = makeClient({ url, auth })
-				launchAssetRun(client, [assetName])
+				launchAssetRun(client, [[assetName]])
 					.then((runId) => onLaunched(runId))
 					.catch((e: Error) => {
 						setPhase({ kind: 'error', message: String(e?.message ?? e) })
