@@ -1,6 +1,35 @@
 import { describe, expect, test } from 'bun:test'
 import type { GraphQLClient } from 'graphql-request'
 import { launchAssetRun } from '../src/client/index.ts'
+import { selectAssets } from '../src/commands/materialise.ts'
+
+const node = (name: string, groupName: string | null) => ({ assetKey: { path: [name] }, groupName })
+const nodes = [
+	node('a', 'extract'),
+	node('b', 'transform'),
+	node('c', 'load'),
+	node('d', 'load'),
+	node('e', null),
+]
+
+describe('selectAssets', () => {
+	test('exclude-group alone selects everything else', () => {
+		expect(selectAssets(nodes, [], [], ['load'])).toEqual([['a'], ['b'], ['e']])
+	})
+
+	test('group selects its members', () => {
+		expect(selectAssets(nodes, [], ['load'], [])).toEqual([['c'], ['d']])
+	})
+
+	test('names and groups combine, excluded group wins', () => {
+		expect(selectAssets(nodes, ['a'], ['load'], ['load'])).toEqual([['a']])
+		expect(selectAssets(nodes, ['a', 'zzz'], ['transform'], [])).toEqual([['a'], ['zzz'], ['b']])
+	})
+
+	test('unknown group throws', () => {
+		expect(() => selectAssets(nodes, [], [], ['nope'])).toThrow(/Unknown group: nope/)
+	})
+})
 
 describe('launchAssetRun', () => {
 	test('sends an assetSelection, not stepKeys', async () => {

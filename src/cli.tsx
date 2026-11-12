@@ -49,7 +49,7 @@ const cli = meow(
 	  errors <id>             Failures for a run, plus metadata of failed checks
 	  checks <asset>          Asset checks with latest result + metadata (--check, --limit)
 	  tail <id>               Stream run events
-	  materialise <name>...   Launch a run for one or more assets
+	  materialise [<name>...] Launch a run for assets by name and/or group (--group, --exclude-group)
 	  launch <job>            Launch a run for a job
 	  cancel <id>             Cancel a run
 	  recheck <a:check>...    Re-run asset checks without rematerialising
@@ -89,6 +89,10 @@ const cli = meow(
 	  --op-config <op>:<key>=<value>
 	                        Set one run config field (launch, materialise; repeatable, wins over
 	                        --config/--config-json). Value parses as JSON where possible, else string.
+	  --group <name>       Group to include (materialise: repeatable; new-asset: group for the new asset)
+	  --exclude-group <name>
+	                        Drop a group from the materialise selection (repeatable). With no names or
+	                        --group, selects every asset except the excluded groups.
 	  --help          Show this help
 `,
 	{
@@ -111,7 +115,8 @@ const cli = meow(
 			insecure: { type: 'boolean', default: false },
 			indices: { type: 'boolean', default: false },
 			upstream: { type: 'string', isMultiple: true },
-			group: { type: 'string' },
+			group: { type: 'string', isMultiple: true },
+			excludeGroup: { type: 'string', isMultiple: true },
 			title: { type: 'string' },
 			test: { type: 'boolean', default: true },
 			dryRun: { type: 'boolean', default: false },
@@ -206,6 +211,8 @@ async function main() {
 				auth,
 				json,
 				assets: rest,
+				groups: cli.flags.group,
+				excludeGroups: cli.flags.excludeGroup,
 				config: cli.flags.config,
 				configJson: cli.flags.configJson,
 				opConfig: cli.flags.opConfig,
@@ -291,7 +298,7 @@ async function main() {
 				auth,
 				name: rest[0],
 				upstream: (cli.flags.upstream ?? []).join(','),
-				group: cli.flags.group,
+				group: cli.flags.group?.at(-1),
 				title: cli.flags.title,
 				test: cli.flags.test ?? true,
 				dryRun: cli.flags.dryRun ?? false,

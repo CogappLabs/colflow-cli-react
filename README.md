@@ -83,6 +83,8 @@ colflow status                    # Latest run summary
 colflow runs --limit 10           # List recent runs
 colflow logs <id>                 # Print run logs
 colflow materialise asset1 asset2 # Launch a run
+colflow materialise --exclude-group load  # Every asset except the load group
+colflow materialise --group extract --group prepare  # Whole groups
 colflow launch <job>              # Launch a job
 colflow launch <job> --config-json '{"resources":{"r":{"config":{"k":true}}}}'  # with run config
 colflow launch <job> --config run.yaml  # run config from a JSON/YAML file
@@ -105,7 +107,7 @@ When developing from source, replace `colflow` with `bun run dev` (e.g. `bun run
 | `errors <id>` | Failures for a run, plus metadata of any failed asset checks |
 | `checks <asset>` | Asset checks with latest result and metadata (--check, --limit for history) |
 | `tail <id>` | Stream run events (--interval) |
-| `materialise <name>...` | Launch a run for assets (--config, --config-json, --op-config) |
+| `materialise [<name>...]` | Launch a run for assets by name and/or group (--group, --exclude-group, --config, --config-json, --op-config) |
 | `launch <job>` | Launch a run for a job (--config, --config-json, --op-config) |
 | `cancel <id>` | Cancel a run |
 | `recheck <a:check>...` | Re-run asset checks |
@@ -137,6 +139,8 @@ When developing from source, replace `colflow` with `bun run dev` (e.g. `bun run
 | `--mount-root <path>` | Deploy mount prefix rewritten to S3 for remote parquet reads (env: COLFLOW_MOUNT_ROOT) |
 | `--s3-bucket <name>` | Assets bucket holding the remote parquet (env: COLFLOW_S3_BUCKET) |
 | `--json` | JSON output where supported |
+| `--group <name>` | `materialise`: include every asset in the group. Repeatable, combines with asset names. (`new-asset`: group for the new asset.) |
+| `--exclude-group <name>` | `materialise`: drop a group from the selection. Repeatable, wins over names and `--group`. Alone, means all assets except those groups. |
 | `--config <path>` | Run config file, JSON or YAML, for `launch` / `materialise`. Repeatable; files shallow-merge left to right. |
 | `--config-json <json>` | Inline JSON run config for `launch` / `materialise`. Merged next, wins over `--config`. |
 | `--op-config <op>:<key>=<value>` | Set one run config field for `launch` / `materialise`, e.g. `tiler_dispatch:limit=5000`. Repeatable; merged last (deep, so it never drops sibling fields). Value parses as JSON where possible, else string. Dotted `<key>` reaches a nested field. |
