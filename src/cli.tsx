@@ -89,6 +89,7 @@ const cli = meow(
 	  --op-config <op>:<key>=<value>
 	                        Set one run config field (launch, materialise; repeatable, wins over
 	                        --config/--config-json). Value parses as JSON where possible, else string.
+	  --tag <key=value>    Run tag (launch, materialise; repeatable). Splits on the first '='.
 	  --group <name>       Group to include (materialise: repeatable; new-asset: group for the new asset)
 	  --exclude-group <name>
 	                        Drop a group from the materialise selection (repeatable). With no names or
@@ -130,6 +131,7 @@ const cli = meow(
 			config: { type: 'string', isMultiple: true },
 			configJson: { type: 'string' },
 			opConfig: { type: 'string', isMultiple: true },
+			tag: { type: 'string', isMultiple: true },
 		},
 	},
 )
@@ -216,6 +218,7 @@ async function main() {
 				config: cli.flags.config,
 				configJson: cli.flags.configJson,
 				opConfig: cli.flags.opConfig,
+				tag: cli.flags.tag,
 			})
 			return
 		case 'launch':
@@ -227,6 +230,7 @@ async function main() {
 				config: cli.flags.config,
 				configJson: cli.flags.configJson,
 				opConfig: cli.flags.opConfig,
+				tag: cli.flags.tag,
 			})
 			return
 		case 'cancel':

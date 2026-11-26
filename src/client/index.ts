@@ -981,10 +981,16 @@ export async function fetchSensors(client: GraphQLClient): Promise<SensorState[]
 	return (data.sensorsOrError.results ?? []).map((r) => r.sensorState)
 }
 
+export interface RunTag {
+	key: string
+	value: string
+}
+
 export async function launchAssetRun(
 	client: GraphQLClient,
 	assetKeys: string[][],
 	runConfigData: Record<string, unknown> = {},
+	tags: RunTag[] = [],
 ): Promise<string> {
 	const repo = await getRepository(client)
 	const data = await client.request<{ launchRun: LaunchRunResult }>(LAUNCH_RUN_MUTATION, {
@@ -996,6 +1002,7 @@ export async function launchAssetRun(
 				assetSelection: assetKeys.map((path) => ({ path })),
 			},
 			runConfigData,
+			...(tags.length > 0 && { executionMetadata: { tags } }),
 		},
 	})
 	return readLaunchRunResult(data.launchRun)
@@ -1005,6 +1012,7 @@ export async function launchRun(
 	client: GraphQLClient,
 	jobName: string,
 	runConfigData: Record<string, unknown> = {},
+	tags: RunTag[] = [],
 ): Promise<string> {
 	const repo = await getRepository(client)
 	const data = await client.request<{ launchRun: LaunchRunResult }>(LAUNCH_RUN_MUTATION, {
@@ -1015,6 +1023,7 @@ export async function launchRun(
 				repositoryLocationName: repo.location.name,
 			},
 			runConfigData,
+			...(tags.length > 0 && { executionMetadata: { tags } }),
 		},
 	})
 	return readLaunchRunResult(data.launchRun)

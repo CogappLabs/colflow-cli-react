@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { resolveRunConfig } from '../src/commands/_runconfig.ts'
+import { parseTags, resolveRunConfig } from '../src/commands/_runconfig.ts'
 
 const tmp = mkdtempSync(join(tmpdir(), 'colflow-runconfig-'))
 
@@ -144,5 +144,40 @@ describe('resolveRunConfig', () => {
 		expect(() => resolveRunConfig({ opConfig: ['tiler_dispatch:=5000'] })).toThrow(
 			/expected <op>:<key>=<value>/,
 		)
+	})
+})
+
+describe('parseTags', () => {
+	test('no flags returns no tags', () => {
+		expect(parseTags()).toEqual([])
+	})
+
+	test('parses key=value', () => {
+		expect(parseTags(['famsf/notify=false'])).toEqual([{ key: 'famsf/notify', value: 'false' }])
+	})
+
+	test('splits on the first = only', () => {
+		expect(parseTags(['q=a=b=c'])).toEqual([{ key: 'q', value: 'a=b=c' }])
+	})
+
+	test('allows an empty value', () => {
+		expect(parseTags(['k='])).toEqual([{ key: 'k', value: '' }])
+	})
+
+	test('keeps repeated tags in order', () => {
+		expect(parseTags(['a=1', 'b=2', 'a=3'])).toEqual([
+			{ key: 'a', value: '1' },
+			{ key: 'b', value: '2' },
+			{ key: 'a', value: '3' },
+		])
+	})
+
+	test('rejects a tag with no =', () => {
+		expect(() => parseTags(['nope'])).toThrow(/expected key=value/)
+	})
+
+	test('rejects an empty key', () => {
+		expect(() => parseTags(['=v'])).toThrow(/empty key/)
+		expect(() => parseTags(['  =v'])).toThrow(/empty key/)
 	})
 })

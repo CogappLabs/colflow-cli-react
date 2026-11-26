@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { extname } from 'node:path'
 import { parse as parseYaml } from 'yaml'
+import type { RunTag } from '../client/index.ts'
 
 export interface RunConfigFlags {
 	config?: string[]
@@ -127,4 +128,18 @@ function parseConfigFile(path: string, raw: string): Record<string, unknown> {
 
 function isObject(v: unknown): v is Record<string, unknown> {
 	return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+/**
+ * Parse repeated `--tag key=value` flags into Dagster run tags. Splits on the
+ * first `=` only, so values may contain `=`. Throws before any request is sent.
+ */
+export function parseTags(flags: string[] = []): RunTag[] {
+	return flags.map((raw) => {
+		const i = raw.indexOf('=')
+		if (i < 0) throw new Error(`--tag: expected key=value, got "${raw}"`)
+		const key = raw.slice(0, i)
+		if (key.trim() === '') throw new Error(`--tag: empty key in "${raw}"`)
+		return { key, value: raw.slice(i + 1) }
+	})
 }

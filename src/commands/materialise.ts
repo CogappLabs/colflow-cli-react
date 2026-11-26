@@ -1,5 +1,5 @@
 import { type AssetListNode, fetchAssets, launchAssetRun, makeClient } from '../client/index.ts'
-import { resolveRunConfig } from './_runconfig.ts'
+import { parseTags, resolveRunConfig } from './_runconfig.ts'
 
 interface Opts {
 	url: string
@@ -11,6 +11,7 @@ interface Opts {
 	config?: string[]
 	configJson?: string
 	opConfig?: string[]
+	tag?: string[]
 }
 
 /**
@@ -59,12 +60,14 @@ export async function runMaterialise({
 	config,
 	configJson,
 	opConfig,
+	tag,
 }: Opts): Promise<void> {
 	if (assets.length === 0 && groups.length === 0 && excludeGroups.length === 0) {
 		process.stderr.write('Provide asset names, --group, or --exclude-group.\n')
 		process.exit(2)
 	}
 	const runConfig = resolveRunConfig({ config, configJson, opConfig })
+	const tags = parseTags(tag)
 	const client = makeClient({ url, auth })
 	let keys: string[][]
 	if (groups.length > 0 || excludeGroups.length > 0) {
@@ -82,7 +85,7 @@ export async function runMaterialise({
 		process.exit(2)
 	}
 	const names = keys.map((k) => k.join('/'))
-	const runId = await launchAssetRun(client, keys, runConfig)
+	const runId = await launchAssetRun(client, keys, runConfig, tags)
 	if (json) {
 		process.stdout.write(`${JSON.stringify({ runId, assets: names }, null, 2)}\n`)
 		return
