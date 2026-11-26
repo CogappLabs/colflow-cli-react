@@ -89,6 +89,7 @@ colflow launch <job>              # Launch a job
 colflow launch <job> --config-json '{"resources":{"r":{"config":{"k":true}}}}'  # with run config
 colflow launch <job> --config run.yaml  # run config from a JSON/YAML file
 colflow materialise tiler_dispatch --op-config tiler_dispatch:limit=5000  # set one op config field
+colflow launch <job> --tag key=value     # launch with a run tag (repeatable)
 colflow inspect output/data.parquet  # Inspect Parquet schema
 colflow es-check                  # Elasticsearch cluster + indices summary
 colflow duckdb                    # Mount parquets and open duckdb --ui
@@ -107,8 +108,8 @@ When developing from source, replace `colflow` with `bun run dev` (e.g. `bun run
 | `errors <id>` | Failures for a run, plus metadata of any failed asset checks |
 | `checks <asset>` | Asset checks with latest result and metadata (--check, --limit for history) |
 | `tail <id>` | Stream run events (--interval) |
-| `materialise [<name>...]` | Launch a run for assets by name and/or group (--group, --exclude-group, --config, --config-json, --op-config) |
-| `launch <job>` | Launch a run for a job (--config, --config-json, --op-config) |
+| `materialise [<name>...]` | Launch a run for assets by name and/or group (--group, --exclude-group, --config, --config-json, --op-config, --tag) |
+| `launch <job>` | Launch a run for a job (--config, --config-json, --op-config, --tag) |
 | `cancel <id>` | Cancel a run |
 | `recheck <a:check>...` | Re-run asset checks |
 | `reload` | Reload Dagster code location |
@@ -144,6 +145,7 @@ When developing from source, replace `colflow` with `bun run dev` (e.g. `bun run
 | `--config <path>` | Run config file, JSON or YAML, for `launch` / `materialise`. Repeatable; files shallow-merge left to right. |
 | `--config-json <json>` | Inline JSON run config for `launch` / `materialise`. Merged next, wins over `--config`. |
 | `--op-config <op>:<key>=<value>` | Set one run config field for `launch` / `materialise`, e.g. `tiler_dispatch:limit=5000`. Repeatable; merged last (deep, so it never drops sibling fields). Value parses as JSON where possible, else string. Dotted `<key>` reaches a nested field. |
+| `--tag <key=value>` | Run tag for `launch` / `materialise`, sent as `executionMetadata.tags`. Repeatable. Splits on the first `=`, so the value may contain `=`; a tag with no `=` or an empty key is rejected before any request. |
 
 ## Environment Variables
 
